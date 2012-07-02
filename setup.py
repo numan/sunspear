@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="analytics",
+    name="sunspear",
     license='Apache License 2.0',
     version="0.1.0-ALPHA",
     description="Activity streams backed by Riak.",
@@ -15,7 +15,7 @@ setup(
     test_suite='nose.collector',
     install_requires=[
         'nydus==0.9.0',
-        'git+https://github.com/basho/riak-python-client.git#egg=riak-python-client',
+        'riak==1.4.1',
     ],
     tests_require=[
         'nose>=1.0',
