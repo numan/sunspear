@@ -73,12 +73,12 @@ class RiakBackend(object):
 
     def create_stream(self, name):
         stream_id = self._get_new_uuid()
-        stream = Object({
+        stream_obj = Object({
             "id": stream_id,
             "displayName": name,
             "published": self._get_timestamp(),
         })
-        self._streams.new(stream_id, data=stream.get_dict())
+        stream = self._streams.new(stream_id, data=stream_obj.get_dict())
         stream.store()
         return stream
 

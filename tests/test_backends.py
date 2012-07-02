@@ -17,7 +17,7 @@ class TestRiakBackend(object):
         stream = self._backend.create_stream(stream_name)
         stream_data = stream.get_data()
 
-        saved_stream = self._backend._streams.get(stream_name)
+        saved_stream = self._backend._streams.get(stream.get_key())
         saved_stream_dict = saved_stream.get_data()
 
         eq_(stream_data, saved_stream_dict)
