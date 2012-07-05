@@ -17,7 +17,6 @@ under the License.
 """
 import uuid
 import datetime
-import calendar
 
 from nydus.db import create_cluster
 from sunspear.activitystreams.models import Object
@@ -52,35 +51,26 @@ class RiakBackend(object):
         self._followers = self._riak_backend.bucket("followers")
         self._objects = self._riak_backend.bucket("objects")
 
-    def _get_timestamp(self):
-        now = datetime.datetime.utcnow()
-        return long(str(calendar.timegm(now.timetuple())) + now.strftime("%f"))
-
     def _get_new_uuid(self):
         return uuid.uuid1().hex
 
     def create_object(self, object_dict):
         obj = Object(object_dict)
-        obj.validate()
+        riak_obj = self._objects.new()
+        obj.save(riak_obj)
 
-        actstream_obj_id = self._get_new_uuid()
-
-        actstream_obj = self._streams.new(actstream_obj_id, data=obj.get_dict())
-        #store a secondary index so we can search by it to check for duplicates
-        actstream_obj.add_index("clientid_bin", obj["id"])
-        actstream_obj.store()
-        return actstream_obj.get_key()
+        return riak_obj
 
     def create_stream(self, name):
         stream_id = self._get_new_uuid()
         stream_obj = Object({
             "id": stream_id,
             "displayName": name,
-            "published": self._get_timestamp(),
+            "published": datetime.datetime.utcnow(),
         })
-        stream = self._streams.new(stream_id, data=stream_obj.get_dict())
-        stream.store()
-        return stream
+        riak_obj = self._streams.new(stream_id)
+        stream_obj.save(riak_obj)
+        return riak_obj
 
-    def _get_backend(self):
+    def _get_riak_client(self):
         return self._riak_backend

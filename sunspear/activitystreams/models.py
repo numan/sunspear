@@ -1,4 +1,9 @@
-from sunspear.exceptions import SunspearValidationException
+from sunspear.exceptions import SunspearValidationException, SunspearInvalidConfigurationError
+from sunspear.lib.rfc3339 import rfc3339
+
+import uuid
+import datetime
+import calendar
 
 
 class Model(object):
@@ -7,7 +12,8 @@ class Model(object):
     _object_fields = []
     _reserved_fields = []
 
-    def __init__(self, object_dict={}):
+    def __init__(self, object_dict={}, riak_object=None):
+        self._riak_object = riak_object
         self._dict = {}
         for key, value in object_dict.iteritems():
             if key in self._media_fields:
@@ -34,11 +40,53 @@ class Model(object):
             if self._dict.get(field, None):
                 self._dict.get(field).validate()
 
-    def __getitem__(self, key):
-        return self._dict[key]
+    def parse_data(self, data):
+        _parsed_data = data.copy()
+
+        for key, value in _parsed_data.items():
+            if isinstance(_parsed_data.get(key), datetime.datetime):
+                _parsed_data[key] = self._parse_date(date=_parsed_data.get(key))
+        return _parsed_data
+
+    def _parse_date(self, date=None):
+        dt = datetime.datetime.utcnow() if date is None or not isinstance(date, datetime.datetime) else date
+        return rfc3339(dt)
+
+    def _get_timestamp(self):
+        now = datetime.datetime.utcnow()
+        return long(str(calendar.timegm(now.timetuple())) + now.strftime("%f"))
+
+    def _get_new_uuid(self):
+        return uuid.uuid1().hex
 
     def get_dict(self):
         return self._dict
+
+    def riak_validate(self):
+        return True
+
+    def save(self, riak_object=None):
+        _riak_object = None
+        if riak_object is None and self._riak_object is None:
+            raise SunspearInvalidConfigurationError("You must pass a riak object to save() or in the constructor.")
+        if self._riak_object is not None:
+            _riak_object = self._riak_object
+        else:
+            self._riak_object = _riak_object = riak_object
+
+        self.validate()
+        self.riak_validate()
+
+        _riak_object.set_data(self.parse_data(self._dict))
+        #store a secondary index so we can search by it to check for duplicates
+        _riak_object.add_index("clientid_bin", str(self._dict["id"]))
+        _riak_object.add_index("timestamp_int", self._get_timestamp())
+
+        _riak_object.store()
+        return _riak_object
+
+    def __getitem__(self, key):
+        return self._dict[key]
 
 
 class Activity(Model):
@@ -52,6 +100,14 @@ class Object(Model):
     _required_fields = ['displayName', 'id', 'published']
     _media_fields = ['image']
     _object_fields = ['author', 'objectType']
+
+    def riak_validate(self):
+        #bad...
+        client = self._riak_object._client
+        result = client.index(self._riak_object.get_bucket().get_name(), 'clientid_bin', str(self._dict["id"])).run()
+
+        if len(result) > 0:
+            raise SunspearValidationException("Object with ID already exists")
 
 
 class MediaLink(Model):
