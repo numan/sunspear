@@ -47,7 +47,7 @@ class Model(object):
 
         for d in self._datetime_fields:
             if d in _parsed_data.keys() and _parsed_data[d]:
-                _parsed_data[d] = rfc3339(_parsed_data[d], utc=True, use_system_timezone=False)
+                _parsed_data[d] = self._parse_date(_parsed_data[d], utc=True, use_system_timezone=False)
         for c in self._object_fields:
             if c in _parsed_data.keys() and _parsed_data[c]:
                 _parsed_data[c] = _parsed_data[c].get_dict()
@@ -57,9 +57,9 @@ class Model(object):
 
         return _parsed_data
 
-    def _parse_date(self, date=None):
+    def _parse_date(self, date=None, utc=True, use_system_timezone=False):
         dt = datetime.datetime.utcnow() if date is None or not isinstance(date, datetime.datetime) else date
-        return rfc3339(dt)
+        return rfc3339(dt, utc=utc, use_system_timezone=use_system_timezone)
 
     def _get_timestamp(self):
         now = datetime.datetime.utcnow()
