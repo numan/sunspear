@@ -93,6 +93,7 @@ class TestModelMethods(object):
         d = datetime.datetime.now()
 
         obj = Object({"displayName": "something", "id": 1232, \
-            "published": d})
+            "published": d, "updated": d})
         parsed_dict = obj.parse_data(obj.get_dict())
         eq_(parsed_dict["published"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
+        eq_(parsed_dict["updated"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
