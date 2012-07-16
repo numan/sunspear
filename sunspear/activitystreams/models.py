@@ -14,8 +14,9 @@ class Model(object):
         'image']
     _datetime_fields = ['published', 'updated']
 
-    def __init__(self, object_dict={}, riak_object=None):
+    def __init__(self, object_dict={}, bucket=None, riak_object=None):
         self._riak_object = riak_object
+        self._bucket = bucket
         self._dict = {}
         for key, value in object_dict.iteritems():
             if key in self._media_fields:
@@ -57,37 +58,18 @@ class Model(object):
 
         return _parsed_data
 
-    def _parse_date(self, date=None, utc=True, use_system_timezone=False):
-        dt = datetime.datetime.utcnow() if date is None or not isinstance(date, datetime.datetime) else date
-        return rfc3339(dt, utc=utc, use_system_timezone=use_system_timezone)
-
-    def _get_timestamp(self):
-        now = datetime.datetime.utcnow()
-        return long(str(calendar.timegm(now.timetuple())) + now.strftime("%f"))
-
-    def _get_new_uuid(self):
-        return uuid.uuid1().hex
-
-    def get_dict(self):
-        return self._dict
-
-    def riak_validate(self):
-        return True
-
     def set_indexes(self, riak_object):
         #store a secondary index so we can search by it to check for duplicates
         riak_object.add_index("clientid_bin", str(self._dict["id"]))
         riak_object.add_index("timestamp_int", self._get_timestamp())
         return riak_object
 
-    def save(self, riak_object=None):
-        _riak_object = None
-        if riak_object is None and self._riak_object is None:
+    def save(self):
+        if self._bucket is None:
             raise SunspearInvalidConfigurationError("You must pass a riak object to save() or in the constructor.")
-        if self._riak_object is not None:
-            _riak_object = self._riak_object
-        else:
-            self._riak_object = _riak_object = riak_object
+        _riak_object = self._bucket.new()
+
+        self._riak_object = _riak_object
 
         self.validate()
         self.riak_validate()
@@ -99,6 +81,26 @@ class Model(object):
 
         _riak_object.store()
         return _riak_object
+
+    def get_riak_object(self):
+        return self._riak_object
+
+    def get_dict(self):
+        return self._dict
+
+    def riak_validate(self):
+        return True
+
+    def _parse_date(self, date=None, utc=True, use_system_timezone=False):
+        dt = datetime.datetime.utcnow() if date is None or not isinstance(date, datetime.datetime) else date
+        return rfc3339(dt, utc=utc, use_system_timezone=use_system_timezone)
+
+    def _get_timestamp(self):
+        now = datetime.datetime.utcnow()
+        return long(str(calendar.timegm(now.timetuple())) + now.strftime("%f"))
+
+    def _get_new_uuid(self):
+        return uuid.uuid1().hex
 
     def __getitem__(self, key):
         return self._dict[key]

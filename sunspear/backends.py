@@ -19,7 +19,7 @@ import uuid
 import datetime
 import riak
 
-from sunspear.activitystreams.models import Object
+from sunspear.activitystreams.models import Object, Activity
 
 
 class RiakBackend(object):
@@ -30,16 +30,17 @@ class RiakBackend(object):
         self._streams = self._riak_backend.bucket("streams")
         self._followers = self._riak_backend.bucket("followers")
         self._objects = self._riak_backend.bucket("objects")
-
-    def _get_new_uuid(self):
-        return uuid.uuid1().hex
+        self._activity = self._riak_backend.bucket("activity")
 
     def create_object(self, object_dict):
-        obj = Object(object_dict)
-        riak_obj = self._objects.new()
-        obj.save(riak_obj)
+        obj = Object(object_dict, bucket=self._objects)
+        obj.save()
 
-        return riak_obj
+        return obj.get_riak_object()
+
+    def create_activity(self, actstream_dict):
+        actstream_obj = Activity(actstream_dict, bucket=self._objects)
+        return
 
     def create_stream(self, name):
         stream_id = self._get_new_uuid()
@@ -47,10 +48,13 @@ class RiakBackend(object):
             "id": stream_id,
             "displayName": name,
             "published": datetime.datetime.utcnow(),
-        })
+        }, bucket=self._streams)
         riak_obj = self._streams.new(stream_id)
-        stream_obj.save(riak_obj)
+        stream_obj.save()
         return riak_obj
+
+    def _get_new_uuid(self):
+        return uuid.uuid1().hex
 
     def _get_riak_client(self):
         return self._riak_backend
