@@ -14,7 +14,6 @@ setup(
     packages=find_packages(exclude=['tests']),
     test_suite='nose.collector',
     install_requires=[
-        'nydus==0.9.0',
         'riak==1.4.1',
     ],
     tests_require=[

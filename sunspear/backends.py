@@ -17,35 +17,15 @@ under the License.
 """
 import uuid
 import datetime
+import riak
 
-from nydus.db import create_cluster
 from sunspear.activitystreams.models import Object
 
 
 class RiakBackend(object):
     def __init__(self, settings, **kwargs):
-        nydus_hosts = {}
 
-        hosts = settings.get("hosts", [])
-        if not hosts:
-            raise Exception("No redis hosts specified")
-
-        for i, host in enumerate(hosts):
-            nydus_hosts[i] = host
-
-        defaults = settings.get("defaults",
-            {
-                'prefix': 'riak',
-                'mapred_prefix': "mapred",
-                'port': 8098,
-            })
-
-        self._riak_backend = create_cluster({
-            'engine': 'nydus.db.backends.riak.Riak',
-            'router': 'nydus.db.routers.RoundRobinRouter',
-            'hosts': nydus_hosts,
-            'defaults': defaults,
-        })
+        self._riak_backend = riak.RiakClient(host="127.0.0.1", port=8091)
 
         self._streams = self._riak_backend.bucket("streams")
         self._followers = self._riak_backend.bucket("followers")
