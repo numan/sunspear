@@ -9,8 +9,10 @@ import calendar
 class Model(object):
     _required_fields = []
     _media_fields = []
-    _object_fields = []
     _reserved_fields = []
+    _object_fields = ['actor', 'generator', 'object', 'provider', 'target', 'author'
+        'image']
+    _datetime_fields = ['published', 'updated']
 
     def __init__(self, object_dict={}, riak_object=None):
         self._riak_object = riak_object
@@ -43,9 +45,16 @@ class Model(object):
     def parse_data(self, data):
         _parsed_data = data.copy()
 
-        for key, value in _parsed_data.items():
-            if isinstance(_parsed_data.get(key), datetime.datetime):
-                _parsed_data[key] = self._parse_date(date=_parsed_data.get(key))
+        for d in self._datetime_fields:
+            if d in _parsed_data.keys() and _parsed_data[d]:
+                _parsed_data[d] = rfc3339(_parsed_data[d], utc=True, use_system_timezone=False)
+        for c in self._object_fields:
+            if c in _parsed_data.keys() and _parsed_data[c]:
+                _parsed_data[c] = _parsed_data[c].get_dict()
+        for k, v in _parsed_data.items():
+            if v == []:
+                _parsed_data[k] = None
+
         return _parsed_data
 
     def _parse_date(self, date=None):
@@ -65,6 +74,12 @@ class Model(object):
     def riak_validate(self):
         return True
 
+    def set_indexes(self, riak_object):
+        #store a secondary index so we can search by it to check for duplicates
+        riak_object.add_index("clientid_bin", str(self._dict["id"]))
+        riak_object.add_index("timestamp_int", self._get_timestamp())
+        return riak_object
+
     def save(self, riak_object=None):
         _riak_object = None
         if riak_object is None and self._riak_object is None:
@@ -77,10 +92,10 @@ class Model(object):
         self.validate()
         self.riak_validate()
 
-        _riak_object.set_data(self.parse_data(self._dict))
-        #store a secondary index so we can search by it to check for duplicates
-        _riak_object.add_index("clientid_bin", str(self._dict["id"]))
-        _riak_object.add_index("timestamp_int", self._get_timestamp())
+        parsed_data = self.parse_data(self._dict)
+
+        _riak_object.set_data(parsed_data)
+        _riak_object = self.set_indexes(_riak_object)
 
         _riak_object.store()
         return _riak_object
@@ -92,14 +107,12 @@ class Model(object):
 class Activity(Model):
     _required_fields = ['id', 'title', 'verb', 'actor', 'object']
     _media_fields = ['icon']
-    _object_fields = ['actor', 'object', 'target', 'provider', 'generator']
     _reserved_fields = ['published', 'updated']
 
 
 class Object(Model):
     _required_fields = ['displayName', 'id', 'published']
     _media_fields = ['image']
-    _object_fields = ['author', 'objectType']
 
     def riak_validate(self):
         #bad...

@@ -5,6 +5,8 @@ from nose.tools import ok_, eq_, raises, set_trace, assert_raises
 from sunspear.activitystreams.models import Activity, MediaLink, Object
 from sunspear.exceptions import SunspearValidationException
 
+import datetime
+
 
 class TestActivity(object):
     def test_required_fields_all_there(self):
@@ -83,3 +85,14 @@ class TestObject(object):
     @raises(SunspearValidationException)
     def test_required_fields_published(self):
         Object({"displayName": "something", "id": 1232}).validate()
+
+
+class TestModelMethods(object):
+
+    def test_parse_data_published_date(self):
+        d = datetime.datetime.now()
+
+        obj = Object({"displayName": "something", "id": 1232, \
+            "published": d})
+        parsed_dict = obj.parse_data(obj.get_dict())
+        eq_(parsed_dict["published"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
