@@ -30,7 +30,7 @@ class RiakBackend(object):
         self._streams = self._riak_backend.bucket("streams")
         self._followers = self._riak_backend.bucket("followers")
         self._objects = self._riak_backend.bucket("objects")
-        self._activity = self._riak_backend.bucket("activity")
+        self._activities = self._riak_backend.bucket("activities")
 
     def create_object(self, object_dict):
         obj = Object(object_dict, bucket=self._objects)
@@ -39,8 +39,10 @@ class RiakBackend(object):
         return obj.get_riak_object()
 
     def create_activity(self, actstream_dict):
-        actstream_obj = Activity(actstream_dict, bucket=self._objects)
-        return
+        activity_obj = Activity(actstream_dict, bucket=self._activity)
+        activity_obj.save()
+
+        return activity_obj.get_riak_object()
 
     def create_stream(self, name):
         stream_id = self._get_new_uuid()

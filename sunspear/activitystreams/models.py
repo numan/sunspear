@@ -51,7 +51,7 @@ class Model(object):
                 _parsed_data[d] = self._parse_date(_parsed_data[d], utc=True, use_system_timezone=False)
         for c in self._object_fields:
             if c in _parsed_data.keys() and _parsed_data[c]:
-                _parsed_data[c] = _parsed_data[c].get_dict()
+                _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
         for k, v in _parsed_data.items():
             if v == []:
                 _parsed_data[k] = None
@@ -59,6 +59,7 @@ class Model(object):
         return _parsed_data
 
     def set_indexes(self, riak_object):
+        #TODO: Need tests for this
         #store a secondary index so we can search by it to check for duplicates
         riak_object.add_index("clientid_bin", str(self._dict["id"]))
         riak_object.add_index("timestamp_int", self._get_timestamp())
@@ -107,9 +108,14 @@ class Model(object):
 
 
 class Activity(Model):
-    _required_fields = ['id', 'title', 'verb', 'actor', 'object']
+    _required_fields = ['title', 'verb', 'actor', 'object']
     _media_fields = ['icon']
     _reserved_fields = ['published', 'updated']
+
+    def validate(self):
+        if "id" not in self._dict or not self._dict["id"]:
+            self._dict["id"] = self._get_new_uuid()
+        super(Activity, self).validate()
 
 
 class Object(Model):
