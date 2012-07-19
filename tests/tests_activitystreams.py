@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 
-from nose.tools import ok_, eq_, raises, set_trace, assert_raises
+from nose.tools import ok_, eq_, raises, set_trace
+
+from mock import MagicMock
 
 from sunspear.activitystreams.models import Activity, MediaLink, Object
 from sunspear.exceptions import SunspearValidationException
@@ -9,25 +11,26 @@ import datetime
 
 
 class TestActivity(object):
+
     def test_required_fields_all_there(self):
         Activity({"id": 5, "title": "Stream Item", "verb": "post", \
             "actor": {"displayName": "something", "id": 1232, "published": "today"}, \
-            "object": {"displayName": "something", "id": 4353, "published": "today"}}).validate()
+            "object": {"displayName": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_actor(self):
         Activity({"id": 5, "title": "Stream Item", "verb": "post", \
-            "object": {"displayName": "something", "id": 4353, "published": "today"}}).validate()
+            "object": {"displayName": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_object(self):
         Activity({"id": 5, "title": "Stream Item", "verb": "post", \
-            "actor": {"displayName": "something", "id": 1232, "published": "today"}}).validate()
+            "actor": {"displayName": "something", "id": 1232, "published": "today"}}, objects_bucket=MagicMock()).validate()
 
     def test_required_fields_no_id(self):
         act = Activity({"title": "Stream Item", "verb": "post", \
             "actor": {"displayName": "something", "id": 1232, "published": "today"}, \
-            "object": {"displayName": "something", "id": 4353, "published": "today"}})
+            "object": {"displayName": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock())
         act.validate()
         ok_(act.get_dict()["id"])
 
@@ -35,19 +38,19 @@ class TestActivity(object):
     def test_required_fields_no_title(self):
         Activity({"id": 5, "verb": "post", \
             "actor": {"displayName": "something", "id": 1232, "published": "today"}, \
-            "object": {"displayName": "something", "id": 4353, "published": "today"}}).validate()
+            "object": {"displayName": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_verb(self):
         Activity({"id": 5, "title": "Stream Item", \
             "actor": {"displayName": "something", "id": 1232, "published": "today"}, \
-            "object": {"displayName": "something", "id": 4353, "published": "today"}}).validate()
+            "object": {"displayName": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
 
     def test_disallowed_field_published(self):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "published": "today", \
                 "actor": {"displayName": "something", "id": 1232, "published": "today"}, \
-                "object": {"displayName": "something", "id": 4353, "published": "today"}}).validate()
+                "object": {"displayName": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: published")
@@ -56,7 +59,7 @@ class TestActivity(object):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "updated": "today", \
                 "actor": {"displayName": "something", "id": 1232, "published": "today"}, \
-                "object": {"displayName": "something", "id": 4353, "published": "today"}}).validate()
+                "object": {"displayName": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: updated")
@@ -68,7 +71,7 @@ class TestMediaLink(object):
 
     @raises(SunspearValidationException)
     def test_required_fields_no_url(self):
-        MediaLink().validate()
+        MediaLink({}).validate()
 
 
 class TestObject(object):
@@ -105,13 +108,3 @@ class TestModelMethods(object):
             "published": d, "updated": d})
         parsed_dict = obj.parse_data(obj.get_dict())
         eq_(parsed_dict["updated"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
-
-    def test_parse_data_nested_objects(self):
-        d = datetime.datetime.now()
-        obj = Activity({"id": 5, "verb": "post", \
-            "actor": {"displayName": "something", "id": 1232, "published": d}, \
-            "object": {"displayName": "something", "id": 4353, "published": d}})
-        parsed_dict = obj.parse_data(obj.get_dict())
-
-        eq_(parsed_dict["actor"]["published"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
-        eq_(parsed_dict["object"]["published"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")

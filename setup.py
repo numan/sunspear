@@ -15,9 +15,11 @@ setup(
     test_suite='nose.collector',
     install_requires=[
         'riak==1.4.1',
+        'python-dateutil==1.5'
     ],
     tests_require=[
         'nose>=1.0',
+        'mock==1.0b1'
     ],
     classifiers=[
         "Intended Audience :: Developers",

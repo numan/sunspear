@@ -39,7 +39,7 @@ class RiakBackend(object):
         return obj.get_riak_object()
 
     def create_activity(self, actstream_dict):
-        activity_obj = Activity(actstream_dict, bucket=self._activity)
+        activity_obj = Activity(actstream_dict, bucket=self._activities, objects_bucket=self._objects)
         activity_obj.save()
 
         return activity_obj.get_riak_object()
@@ -51,9 +51,8 @@ class RiakBackend(object):
             "displayName": name,
             "published": datetime.datetime.utcnow(),
         }, bucket=self._streams)
-        riak_obj = self._streams.new(stream_id)
         stream_obj.save()
-        return riak_obj
+        return stream_obj.get_riak_object()
 
     def _get_new_uuid(self):
         return uuid.uuid1().hex

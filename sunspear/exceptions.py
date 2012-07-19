@@ -8,3 +8,7 @@ class SunspearInvalidConfigurationError(SunspearBaseException):
 
 class SunspearValidationException(SunspearBaseException):
     pass
+
+
+class SunspearNotFoundException(SunspearBaseException):
+    pass
