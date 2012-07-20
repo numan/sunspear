@@ -20,12 +20,13 @@ import datetime
 import riak
 
 from sunspear.activitystreams.models import Object, Activity
-
+from riak import RiakPbcTransport
 
 class RiakBackend(object):
     def __init__(self, settings, **kwargs):
 
-        self._riak_backend = riak.RiakClient(host="127.0.0.1", port=8091)
+        self._riak_backend = riak.RiakClient(host="127.0.0.1", port=8081,\
+            transport_class=RiakPbcTransport, transport_options={"max_attempts": 2})
 
         self._streams = self._riak_backend.bucket("streams")
         self._followers = self._riak_backend.bucket("followers")
