@@ -1,0 +1,103 @@
+from __future__ import absolute_import
+
+from sunspear.lib.dotdict import dotdictify
+
+from nose.tools import ok_, eq_, raises
+
+
+class TestDotDictify(object):
+    def setUp(self):
+        self._test_dict = dotdictify({
+            'a': 1,
+            'b': 2,
+            'c': 3,
+            'd': {
+                'e': 4,
+                'f': {
+                    'g': 6
+                }
+            }
+        })
+
+    def test_get_item(self):
+        eq_(self._test_dict.a, 1)
+        eq_(self._test_dict.b, 2)
+        eq_(self._test_dict.d.e, 4)
+        eq_(self._test_dict.d.f.g, 6)
+
+    @raises(KeyError)
+    def test_get_item_key_error(self):
+        self._test_dict.z
+
+    @raises(AttributeError)
+    def test_get_item_attribute_error_nested(self):
+        self._test_dict.a.z
+
+    @raises(KeyError)
+    def test_get_item_key_error_multi_nested(self):
+        self._test_dict.d.f.z
+
+    def test_get_dict(self):
+        eq_(self._test_dict["a"], 1)
+        eq_(self._test_dict["b"], 2)
+        eq_(self._test_dict["d.e"], 4)
+        eq_(self._test_dict["d.f.g"], 6)
+
+    @raises(KeyError)
+    def test_get_dict_key_error(self):
+        self._test_dict["z"]
+
+    @raises(KeyError)
+    def test_get_dict_attribute_error_nested(self):
+        self._test_dict["a.z"]
+
+    @raises(KeyError)
+    def test_get_dict_key_error_multi_nested(self):
+        self._test_dict["d.f.z"]
+
+    def test_set_item(self):
+        self._test_dict.a = "one"
+        self._test_dict.b = "two"
+        self._test_dict.d.e = "four"
+        self._test_dict.d.f.g = "six"
+
+        eq_(self._test_dict.a, "one")
+        eq_(self._test_dict.b, "two")
+        eq_(self._test_dict.d.e, "four")
+        eq_(self._test_dict.d.f.g, "six")
+
+    def test_set_item_non_existing_key_succeeds(self):
+        self._test_dict.z = "zed"
+        eq_(self._test_dict.z, "zed")
+
+    @raises(AttributeError)
+    def test_set_item_attribute_error_nested(self):
+        self._test_dict.a.z = "zed"
+
+    def test_set_item_multi_nested_non_existing_keys_succeeds(self):
+        self._test_dict.d.f.z = "zed"
+        eq_(self._test_dict.d.f.z, "zed")
+
+    def test_contains(self):
+        ok_("a" in self._test_dict)
+        ok_("d.e" in self._test_dict)
+        ok_("d.f.g" in self._test_dict)
+
+        ok_(not ("z" in self._test_dict))
+        ok_(not ("a.z" in self._test_dict))
+        ok_(not ("d.f.g.z" in self._test_dict))
+
+    def test_get(self):
+        eq_(self._test_dict.get("a"), 1)
+        eq_(self._test_dict.get("b"), 2)
+        eq_(self._test_dict.get("d.e"), 4)
+        eq_(self._test_dict.get("d.f.g"), 6)
+
+    def test_get_default(self):
+        eq_(self._test_dict.get("z"), None)
+        eq_(self._test_dict.get("a.z"), None)
+        eq_(self._test_dict.get("d.f.z"), None)
+
+        eq_(self._test_dict.get("z", "zed"), "zed")
+        eq_(self._test_dict.get("a.z", "zed"), "zed")
+        eq_(self._test_dict.get("d.f.z", "zed"), "zed")

@@ -24,7 +24,7 @@ Report bugs & problems on BitBucket_
 __author__ = 'Henry Precheur <henry@precheur.org>'
 __license__ = 'ISCL'
 __version__ = '5.1'
-__all__ = ('rfc3339', )
+__all__ = ('rfc3339', '_timezone', '_utc_offset', '_timedelta_to_seconds')
 
 import datetime
 import time
