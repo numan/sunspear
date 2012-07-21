@@ -19,8 +19,13 @@ import uuid
 import datetime
 import riak
 
+from itertools import groupby
+
 from sunspear.activitystreams.models import Object, Activity
+from sunspear.lib.dotdict import dotdictify
+
 from riak import RiakPbcTransport
+
 
 class RiakBackend(object):
     def __init__(self, settings, **kwargs):
@@ -54,6 +59,31 @@ class RiakBackend(object):
         }, bucket=self._streams)
         stream_obj.save()
         return stream_obj.get_riak_object()
+
+    def get_activities(self, activity_ids=[], groupby_list=[]):
+        if not activity_ids:
+            return []
+        activity_buckey_name = self._activities.get_name()
+        activities = self._riak_backend
+
+        for activity_id in activity_ids:
+            activities = activities.add(activity_buckey_name, str(activity_id))
+
+        activities = activities.map("Riak.mapValuesJson").run()
+
+        keys, groups = groupby(activities, self._group_by_aggregator(groupby_list))
+
+    def _group_by_aggregator(self, group_by_attributes=[]):
+        def _callback(activity):
+            activity_dict = dotdictify(activity)
+            matching_attributes = []
+
+            for attribute in group_by_attributes:
+                value = activity_dict.get(attribute)
+                if activity_dict.get(attribute) is not None:
+                    matching_attributes.append(value)
+            return matching_attributes
+        return _callback
 
     def _get_new_uuid(self):
         return uuid.uuid1().hex

@@ -61,6 +61,38 @@ class TestRiakBackend(object):
         eq_(self._backend._objects.get(actor_id).get_data(), actor)
         eq_(self._backend._objects.get(object_id).get_data(), obj)
 
+    def test_create_activity_maintains_extra_keys(self):
+        actor_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"bar": "baz", "displayName": "something", "id": actor_id, "published": published_time}
+        obj = {"foo": "bar", "displayName": "something", "id": object_id, "published": published_time}
+        other = {
+            "stuff": "this"
+        }
+
+        act_obj = self._backend.create_activity({"id": 5, "title": "Stream Item",
+            "verb": "post",
+            "actor": actor,
+            "object": obj,
+            "other": other
+        })
+        act_obj_dict = act_obj.get_data()
+
+        eq_(act_obj_dict['actor'], actor_id)
+        eq_(act_obj_dict['object'], object_id)
+
+        actor.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
+        obj.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
+        eq_(self._backend._objects.get(actor_id).get_data(), actor)
+        eq_(self._backend._objects.get(object_id).get_data(), obj)
+        eq_(act_obj_dict["other"], other)
+
     def test_create_activity_with_actor_already_exists(self):
         actor_id = '1234'
         object_id = '4353'
@@ -102,3 +134,16 @@ class TestRiakBackend(object):
             ok_(True)
 
         ok_(not self._backend._objects.get(actor["id"]).exists())
+
+    def test_group_by_aggregator(self):
+        data_dict = {
+            'a': 1,
+            'b': 2,
+            'c': {
+                'd': 3,
+                'e': 4
+            }
+        }
+        expected = [1, 2, 4]
+        actual = self._backend._group_by_aggregator(group_by_attributes=['a', 'b', 'a.c.f', 'c.e'])(data_dict)
+        eq_(expected, actual)
