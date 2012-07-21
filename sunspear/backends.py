@@ -71,7 +71,40 @@ class RiakBackend(object):
 
         activities = activities.map("Riak.mapValuesJson").run()
 
-        keys, groups = groupby(activities, self._group_by_aggregator(groupby_list))
+        _raw_group_actvities = groupby(activities, self._group_by_aggregator(groupby_list))
+
+    def _compress_activities(self, group_by_attributes=[], grouped_activities=[]):
+        grouped_activities_list = []
+        for keys, group in grouped_activities:
+            group_list = list(group)
+            #special case. If we just grouped one activity, we don't need to aggregate
+            if len(group_list) == 1:
+                grouped_activities_list.append(group_list[0])
+            else:
+                nested_root_attributes = []
+                #we have sevral activities that can be grouped together
+                aggregated_activity = dotdictify({'grouped_by_values': keys})
+                aggregated_activity.update(group_list[0])
+
+                #special handeling if we are grouping by a nested attribute
+                #In this case, we listify all the other keys
+                for attr in group_by_attributes:
+                    if '.' in attr:
+                        nested_val = aggregated_activity.get(attr)
+                        if nested_val is not None and isinstance(nested_val, dict):
+                            nested_dict, attr = attr.rsplit('.', 1)
+                            nested_root, rest = attr.split('.', 1)
+
+                            for nested_dict_key, nested_dict_value in aggregated_activity.get(nested_dict).items():
+                                if nested_dict_key != attr:
+                                    aggregated_activity['.'.join([nested_dict, nested_dict_key])] = [nested_dict_value]
+
+                #now we listify all other non nested attributes
+                for key, val in aggregated_activity.items():
+                    if key not in group_by_attributes and key not in nested_root_attributes:
+                        aggregated_activity[key] = [val]
+
+
 
     def _group_by_aggregator(self, group_by_attributes=[]):
         def _callback(activity):
