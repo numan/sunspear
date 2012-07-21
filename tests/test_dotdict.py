@@ -101,3 +101,17 @@ class TestDotDictify(object):
         eq_(self._test_dict.get("z", "zed"), "zed")
         eq_(self._test_dict.get("a.z", "zed"), "zed")
         eq_(self._test_dict.get("d.f.z", "zed"), "zed")
+
+    def test_setdefault(self):
+        eq_(self._test_dict.setdefault("a", "one"), 1)
+        eq_(self._test_dict.setdefault("b", "two"), 2)
+        eq_(self._test_dict.setdefault("d.e", "four"), 4)
+        eq_(self._test_dict.setdefault("d.f.g", "six"), 6)
+
+        eq_(self._test_dict.setdefault("z", "one"), "one")
+        eq_(self._test_dict.setdefault("d.z", "four"), "four")
+        eq_(self._test_dict.setdefault("d.f.z", "six"), "six")
+
+        eq_(self._test_dict["z"], "one")
+        eq_(self._test_dict["d.z"], "four")
+        eq_(self._test_dict["d.f.z"], "six")
