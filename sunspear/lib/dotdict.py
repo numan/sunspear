@@ -1,3 +1,7 @@
+#Originally 'borrowed' from http://stackoverflow.com/questions/3797957/python-easily-access-deeply-nested-dict-get-and-set
+#Some modifications mad to suit the needs of this project
+
+
 class dotdictify(dict):
     def __init__(self, value=None):
         if value is None:
