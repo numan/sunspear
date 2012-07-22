@@ -16,6 +16,8 @@ class dotdictify(dict):
         if '.' in key:
             myKey, restOfKey = key.split('.', 1)
             target = self.setdefault(myKey, dotdictify())
+            if not isinstance(target, dotdictify) and isinstance(target, dict):
+                target = dotdictify(target)
             if not isinstance(target, dotdictify):
                 raise KeyError('cannot set "%s" in "%s" (%s)' % (restOfKey, myKey, repr(target)))
             target[restOfKey] = value
@@ -29,6 +31,8 @@ class dotdictify(dict):
             return dict.__getitem__(self, key)
         myKey, restOfKey = key.split('.', 1)
         target = dict.__getitem__(self, myKey)
+        if isinstance(target, dict):
+            target = dotdictify(target)
         if not isinstance(target, dotdictify):
             raise KeyError('cannot get "%s" in "%s" (%s)' % (restOfKey, myKey, repr(target)))
         return target[restOfKey]
@@ -52,6 +56,3 @@ class dotdictify(dict):
         if key not in self:
             self[key] = default
         return self[key]
-
-    __setattr__ = __setitem__
-    __getattr__ = __getitem__

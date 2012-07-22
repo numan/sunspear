@@ -18,6 +18,7 @@ under the License.
 import uuid
 import datetime
 import riak
+import copy
 
 from itertools import groupby
 
@@ -63,17 +64,25 @@ class RiakBackend(object):
     def get_activities(self, activity_ids=[], groupby_list=[]):
         if not activity_ids:
             return []
+
+        activities = self._get_many_activities(activity_ids)
+
+        if groupby_list:
+            _raw_group_actvities = groupby(activities, self._group_by_aggregator(groupby_list))
+            return self._aggregate_activities(_raw_group_actvities)
+        else:
+            return activities
+
+    def _get_many_activities(self, activity_ids=[]):
         activity_buckey_name = self._activities.get_name()
         activities = self._riak_backend
 
         for activity_id in activity_ids:
             activities = activities.add(activity_buckey_name, str(activity_id))
 
-        activities = activities.map("Riak.mapValuesJson").run()
+        return activities.map("Riak.mapValuesJson").run()
 
-        _raw_group_actvities = groupby(activities, self._group_by_aggregator(groupby_list))
-
-    def _compress_activities(self, group_by_attributes=[], grouped_activities=[]):
+    def _aggregate_activities(self, group_by_attributes=[], grouped_activities=[]):
         grouped_activities_list = []
         for keys, group in grouped_activities:
             group_list = list(group)
@@ -81,30 +90,63 @@ class RiakBackend(object):
             if len(group_list) == 1:
                 grouped_activities_list.append(group_list[0])
             else:
-                nested_root_attributes = []
                 #we have sevral activities that can be grouped together
-                aggregated_activity = dotdictify({'grouped_by_values': keys})
+                aggregated_activity = dotdictify({})
                 aggregated_activity.update(group_list[0])
 
-                #special handeling if we are grouping by a nested attribute
-                #In this case, we listify all the other keys
-                for attr in group_by_attributes:
-                    if '.' in attr:
-                        nested_val = aggregated_activity.get(attr)
-                        if nested_val is not None and isinstance(nested_val, dict):
-                            nested_dict, attr = attr.rsplit('.', 1)
-                            nested_root, rest = attr.split('.', 1)
+                nested_root_attributes, aggregated_activity = self._listify_attributes(group_by_attributes=group_by_attributes,\
+                    activity=aggregated_activity)
 
-                            for nested_dict_key, nested_dict_value in aggregated_activity.get(nested_dict).items():
-                                if nested_dict_key != attr:
-                                    aggregated_activity['.'.join([nested_dict, nested_dict_key])] = [nested_dict_value]
+                #aggregate the rest of the activities into lists
+                for activity in group_list[1:]:
+                    activity = dotdictify(activity)
+                    for key in aggregated_activity.keys():
+                        if key not in group_by_attributes and key not in nested_root_attributes:
+                            aggregated_activity[key].append(activity.get(key))
 
-                #now we listify all other non nested attributes
-                for key, val in aggregated_activity.items():
-                    if key not in group_by_attributes and key not in nested_root_attributes:
-                        aggregated_activity[key] = [val]
+                    #for nested attributes append all other attributes in a list
+                    for attr in group_by_attributes:
+                        if '.' in attr:
+                            nested_val = activity.get(attr)
+                            if nested_val is not None:
+                                nested_dict, deepest_attr = attr.rsplit('.', 1)
 
+                                for nested_dict_key, nested_dict_value in activity.get(nested_dict).items():
+                                    if nested_dict_key != deepest_attr:
+                                        aggregated_activity['.'.join([nested_dict, nested_dict_key])].append(nested_dict_value)
 
+                #this might not be useful but meh, we'll see
+                aggregated_activity.update({'grouped_by_values': keys})
+                grouped_activities_list.append(aggregated_activity)
+        return grouped_activities_list
+
+    def _listify_attributes(self, group_by_attributes=[], activity={}):
+        if not isinstance(activity, dotdictify):
+            activity = dotdictify(activity)
+
+        listified_dict = copy.copy(activity)
+
+        nested_root_attributes = []
+        #special handeling if we are grouping by a nested attribute
+        #In this case, we listify all the other keys
+        for attr in group_by_attributes:
+            if '.' in attr:
+                nested_val = activity.get(attr)
+                if nested_val is not None:
+                    nested_dict, deepest_attr = attr.rsplit('.', 1)
+                    nested_root, rest = attr.split('.', 1)
+                    #store a list of nested roots. We'll have to be careful not to listify these
+                    nested_root_attributes.append(nested_root)
+                    for nested_dict_key, nested_dict_value in activity.get(nested_dict).items():
+                        if nested_dict_key != deepest_attr:
+                            listified_dict['.'.join([nested_dict, nested_dict_key])] = [nested_dict_value]
+
+        #now we listify all other non nested attributes
+        for key, val in activity.items():
+            if key not in group_by_attributes and key not in nested_root_attributes:
+                listified_dict[key] = [val]
+
+        return nested_root_attributes, listified_dict
 
     def _group_by_aggregator(self, group_by_attributes=[]):
         def _callback(activity):

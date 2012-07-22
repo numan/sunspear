@@ -19,24 +19,6 @@ class TestDotDictify(object):
             }
         })
 
-    def test_get_item(self):
-        eq_(self._test_dict.a, 1)
-        eq_(self._test_dict.b, 2)
-        eq_(self._test_dict.d.e, 4)
-        eq_(self._test_dict.d.f.g, 6)
-
-    @raises(KeyError)
-    def test_get_item_key_error(self):
-        self._test_dict.z
-
-    @raises(AttributeError)
-    def test_get_item_attribute_error_nested(self):
-        self._test_dict.a.z
-
-    @raises(KeyError)
-    def test_get_item_key_error_multi_nested(self):
-        self._test_dict.d.f.z
-
     def test_get_dict(self):
         eq_(self._test_dict["a"], 1)
         eq_(self._test_dict["b"], 2)
@@ -55,28 +37,9 @@ class TestDotDictify(object):
     def test_get_dict_key_error_multi_nested(self):
         self._test_dict["d.f.z"]
 
-    def test_set_item(self):
-        self._test_dict.a = "one"
-        self._test_dict.b = "two"
-        self._test_dict.d.e = "four"
-        self._test_dict.d.f.g = "six"
-
-        eq_(self._test_dict.a, "one")
-        eq_(self._test_dict.b, "two")
-        eq_(self._test_dict.d.e, "four")
-        eq_(self._test_dict.d.f.g, "six")
-
     def test_set_item_non_existing_key_succeeds(self):
         self._test_dict.z = "zed"
         eq_(self._test_dict.z, "zed")
-
-    @raises(AttributeError)
-    def test_set_item_attribute_error_nested(self):
-        self._test_dict.a.z = "zed"
-
-    def test_set_item_multi_nested_non_existing_keys_succeeds(self):
-        self._test_dict.d.f.z = "zed"
-        eq_(self._test_dict.d.f.z, "zed")
 
     def test_contains(self):
         ok_("a" in self._test_dict)
