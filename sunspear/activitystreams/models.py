@@ -183,25 +183,25 @@ class Activity(Model):
         if self._bucket.get(self._dict["id"]).exists():
             raise SunspearValidationException("Object with ID already exists")
 
-    def create_comment(self, actor, comment):
-        comment_activity = Activity({
+    def create_reply(self, actor, reply):
+        reply_activity = ReplyActivity({
             'actor': actor,
-            'object': {'objectType': 'comment', 'id': self._get_new_uuid(), 'published': datetime.datetime.utcnow(), 'content': comment},
+            'object': {'objectType': 'reply', 'id': self._get_new_uuid(), 'published': datetime.datetime.utcnow(), 'content': reply},
             'target': self._dict['actor'],
-            'verb': 'comment',
+            'verb': 'reply',
             'inReplyTo': {'objectType': 'activity_ref', 'displayName': self._dict['verb'], 'id': self._get_new_uuid(), 'published': self._dict['published'], 'activityId': self._dict['id']}
         }, bucket=self._bucket, objects_bucket=self._objects_bucket)
-        comment_activity.save()
-        comment_dict = comment_activity.get_dict()
+        reply_activity.save()
+        reply_dict = reply_activity.get_dict()
 
         #inReplyTo is implicit when it is part of an actiity
-        del comment_dict['inReplyTo']
+        del reply_dict['inReplyTo']
         self._dict['replies']['totalItems'] += 1
         #insert the newest comment at the top of the list
-        self._dict['replies']['items'].insert(0, comment_dict)
+        self._dict['replies']['items'].insert(0, reply_dict)
         self.save()
 
-        return comment_activity, self
+        return reply_activity, self
 
     def set_indexes(self, riak_object):
         super(Activity, self).set_indexes(riak_object)
@@ -216,13 +216,27 @@ class Activity(Model):
         return riak_object
 
 
-class CommentActivity(Activity):
+class ReplyActivity(Activity):
     def set_indexes(self, riak_object):
-        super(CommentActivity, self).set_indexes(riak_object)
+        super(ReplyActivity, self).set_indexes(riak_object)
         #TODO: Need tests for this
         riak_object.add_index("inreplyto_bin", str(self._dict['inReplyTo']['activityId']))
 
         return riak_object
+
+    def delete(self, key=None):
+        self.get(key=key)
+        if self._dict['verb'] != 'reply':
+            raise SunspearValidationException("Trying to delete something that is not a reply.")
+
+        #clean up the reference from the original activity
+        activity = Activity()
+        activity.get(key=self._dict['inReplyTo']['activityId'])
+        activity._dict['replies']['totalItems'] -= 1
+        activity._dict['replies']['items'] = filter(lambda x: x["id"] != key)
+
+        self.save()
+        activity.save()
 
 
 class Object(Model):

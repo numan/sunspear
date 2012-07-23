@@ -20,9 +20,9 @@ import datetime
 import riak
 import copy
 
-from itertools import groupby, imap
+from itertools import groupby
 
-from sunspear.activitystreams.models import Object, Activity, Model
+from sunspear.activitystreams.models import Object, Activity, Model, ReplyActivity
 from sunspear.lib.dotdict import dotdictify
 
 from riak import RiakPbcTransport
@@ -78,11 +78,15 @@ class RiakBackend(object):
 
         return activity_obj.get_riak_object()
 
-    def create_comment(self, activity, actor, comment):
+    def create_reply(self, activity_id, actor, reply):
         activity = Activity(bucket=self._activities, objects_bucket=self._objects)
-        activity.get(key=activity)
-        activity.create_comment(actor, comment)
-        pass
+        activity.get(key=activity_id)
+
+        return activity.create_comment(actor, reply)
+
+    def delete_reply(self, reply_id):
+        reply = ReplyActivity(bucket=self._activities, objects_bucket=self._objects)
+        reply.delete(key=reply_id)
 
     def get_activities(self, activity_ids=[], group_by_attributes=[]):
         """
@@ -106,25 +110,20 @@ class RiakBackend(object):
             return self.hydrate_activities(activities)
 
     def hydrate_activities(self, activities):
-        #collect a list of unique object ids. We only iterate through the fields that we know
-        #for sure are objects. User is responsible for hydrating all other fields.
-        object_ids = set()
-        for activity in activities:
+
+        def _extract_object_keys(activity):
+            keys = []
             for object_key in Model._object_fields:
                 if object_key not in activity:
                     continue
                 objects = activity.get(object_key)
                 if isinstance(objects, list):
-                    object_ids.update(objects)
+                    keys = keys + objects
                 if isinstance(objects, basestring):
-                    object_ids.add(objects)
+                    keys.append(objects)
+            return keys
 
-        #Get the ids of the objects we have collected
-        objects = self._get_many_objects(object_ids)
-        objects_dict = dict(((obj["id"], obj,) for obj in objects))
-
-        #replace the object ids with the hydrated objects
-        for activity in activities:
+        def _hydrate_object_keys(activity, objects_dict):
             for object_key in Model._object_fields:
                 if object_key not in activity:
                     continue
@@ -133,6 +132,27 @@ class RiakBackend(object):
                     activity[object_key] = [objects_dict.get(obj_id, {}) for obj_id in activity_objects]
                 if isinstance(activity_objects, basestring):
                     activity[object_key] = objects_dict.get(activity_objects, {})
+            return activity
+
+        #collect a list of unique object ids. We only iterate through the fields that we know
+        #for sure are objects. User is responsible for hydrating all other fields.
+        object_ids = set()
+        for activity in activities:
+            object_ids.update(_extract_object_keys(activity))
+            if 'replies' in activity and activity['replies']['items']:
+                for reply in activity['replies']['items']:
+                    object_ids.update(_extract_object_keys(reply))
+
+        #Get the ids of the objects we have collected
+        objects = self._get_many_objects(object_ids)
+        objects_dict = dict(((obj["id"], obj,) for obj in objects))
+
+        #replace the object ids with the hydrated objects
+        for activity in activities:
+            activity = _hydrate_object_keys(activity, objects_dict)
+            if 'replies' in activity and activity['replies']['items']:
+                for reply in activity['replies']['items']:
+                    reply = _hydrate_object_keys(activity, objects_dict)
 
         return activities
 
