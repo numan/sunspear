@@ -78,6 +78,12 @@ class RiakBackend(object):
 
         return activity_obj.get_riak_object()
 
+    def create_comment(self, activity, actor, comment):
+        activity = Activity(bucket=self._activities, objects_bucket=self._objects)
+        activity.get(key=activity)
+        activity.create_comment(actor, comment)
+        pass
+
     def get_activities(self, activity_ids=[], group_by_attributes=[]):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group

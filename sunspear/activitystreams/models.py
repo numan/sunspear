@@ -6,6 +6,7 @@ from dateutil.parser import parse
 import uuid
 import datetime
 import calendar
+import copy
 
 
 class Model(object):
@@ -61,7 +62,7 @@ class Model(object):
             if c in _parsed_data.keys() and _parsed_data[c] and isinstance(_parsed_data[c], Model):
                 _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
         for k, v in _parsed_data.items():
-            if v == []:
+            if v == [] or v == {}:
                 _parsed_data[k] = None
 
         return _parsed_data
@@ -90,6 +91,17 @@ class Model(object):
 
     def set_bucket(self, bucket):
         self._bucket = bucket
+
+    def get(self, key=None):
+        #TODO need tests for this
+        if key is None and id is None:
+            raise SunspearValidationException("You must provide either ``key`` or ``id`` to get an object.")
+
+        riak_obj = self._bucket.get(key)
+        if not riak_obj.exists():
+            raise SunspearNotFoundException("Could not find the object by ``key`` or ``id`")
+        self._riak_object = riak_obj
+        self._dict = self.objectify_dict(self._riak_object.get_data())
 
     def _get_keys_by_index(self, index_name='clientid_bin', index_value=""):
         client = self._riak_object._client
@@ -131,7 +143,7 @@ class Model(object):
 
 
 class Activity(Model):
-    _required_fields = ['title', 'verb', 'actor', 'object']
+    _required_fields = ['verb', 'actor', 'object']
     _media_fields = ['icon']
     _reserved_fields = ['published', 'updated']
 
@@ -144,6 +156,12 @@ class Activity(Model):
 
         if "id" not in self._dict or not self._dict["id"]:
             self._dict["id"] = self._get_new_uuid()
+
+        if 'replies' not in self._dict:
+            self._dict['replies'] = {'totalItems': 0, 'items': []}
+
+        if 'likes' not in self._dict:
+            self._dict['likes'] = {'totalItems': 0, 'items': []}
 
     def save(self):
         #if things in the object field seem like they are new
@@ -165,6 +183,26 @@ class Activity(Model):
         if self._bucket.get(self._dict["id"]).exists():
             raise SunspearValidationException("Object with ID already exists")
 
+    def create_comment(self, actor, comment):
+        comment_activity = Activity({
+            'actor': actor,
+            'object': {'objectType': 'comment', 'id': self._get_new_uuid(), 'published': datetime.datetime.utcnow(), 'content': comment},
+            'target': self._dict['actor'],
+            'verb': 'comment',
+            'inReplyTo': {'objectType': 'activity_ref', 'displayName': self._dict['verb'], 'id': self._get_new_uuid(), 'published': self._dict['published'], 'activityId': self._dict['id']}
+        }, bucket=self._bucket, objects_bucket=self._objects_bucket)
+        comment_activity.save()
+        comment_dict = comment_activity.get_dict()
+
+        #inReplyTo is implicit when it is part of an actiity
+        del comment_dict['inReplyTo']
+        self._dict['replies']['totalItems'] += 1
+        #insert the newest comment at the top of the list
+        self._dict['replies']['items'].insert(0, comment_dict)
+        self.save()
+
+        return comment_activity, self
+
     def set_indexes(self, riak_object):
         super(Activity, self).set_indexes(riak_object)
         #TODO: Need tests for this
@@ -178,25 +216,23 @@ class Activity(Model):
         return riak_object
 
 
+class CommentActivity(Activity):
+    def set_indexes(self, riak_object):
+        super(CommentActivity, self).set_indexes(riak_object)
+        #TODO: Need tests for this
+        riak_object.add_index("inreplyto_bin", str(self._dict['inReplyTo']['activityId']))
+
+        return riak_object
+
+
 class Object(Model):
-    _required_fields = ['displayName', 'id', 'published']
+    _required_fields = ['objectType', 'id', 'published']
     _media_fields = ['image']
 
     def riak_validate(self):
         #TODO Need tests for this
         if self._bucket.get(self._dict["id"]).exists():
             raise SunspearValidationException("Object with ID already exists")
-
-    def get(self, key=None):
-        #TODO need tests for this
-        if key is None and id is None:
-            raise SunspearValidationException("You must provide either ``key`` or ``id`` to get an object.")
-
-        riak_obj = self._bucket.get(key)
-        if not riak_obj.exists():
-            raise SunspearNotFoundException("Could not find the object by ``key`` or ``id`")
-        self._riak_object = riak_obj
-        self._dict = self.objectify_dict(self._riak_object.get_data())
 
 
 class MediaLink(Model):

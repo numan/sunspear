@@ -20,7 +20,7 @@ class TestRiakBackend(object):
     def test_create_object(self):
         self._backend._objects.get('1234').delete()
 
-        actstream_obj = self._backend.create_object({"displayName": "Hello", "id": 1234, "published": datetime.datetime.utcnow()})
+        actstream_obj = self._backend.create_object({"objectType": "Hello", "id": 1234, "published": datetime.datetime.utcnow()})
 
         ok_(actstream_obj.get_key())
         saved_obj = self._backend._objects.get(actstream_obj.get_key())
@@ -40,8 +40,8 @@ class TestRiakBackend(object):
 
         published_time = datetime.datetime.utcnow()
 
-        actor = {"displayName": "something", "id": actor_id, "published": published_time}
-        obj = {"displayName": "something", "id": object_id, "published": published_time}
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
 
         act_obj = self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
         act_obj_dict = act_obj.get_data()
@@ -65,8 +65,8 @@ class TestRiakBackend(object):
 
         published_time = datetime.datetime.utcnow()
 
-        actor = {"bar": "baz", "displayName": "something", "id": actor_id, "published": published_time}
-        obj = {"foo": "bar", "displayName": "something", "id": object_id, "published": published_time}
+        actor = {"bar": "baz", "objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"foo": "bar", "objectType": "something", "id": object_id, "published": published_time}
         other = {
             "stuff": "this"
         }
@@ -99,8 +99,8 @@ class TestRiakBackend(object):
 
         published_time = datetime.datetime.utcnow()
 
-        actor = {"displayName": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
-        obj = {"displayName": "something", "id": object_id, "published": published_time}
+        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
 
         self._backend._objects.new(key=actor["id"]).set_data(actor).store()
         try:
@@ -120,8 +120,8 @@ class TestRiakBackend(object):
 
         published_time = datetime.datetime.utcnow()
 
-        actor = {"displayName": "something", "id": actor_id, "published": published_time}
-        obj = {"displayName": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
 
         self._backend._objects.new(key=obj["id"]).set_data(obj).store()
         try:
@@ -215,12 +215,12 @@ class TestRiakBackend(object):
         self._backend._objects.get(object_id).delete()
         self._backend._objects.get(object_id2).delete()
 
-        actor = {"displayName": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
-        actor2 = {"displayName": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
-        actor3 = {"displayName": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
+        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        actor2 = {"objectType": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
+        actor3 = {"objectType": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
 
-        obj = {"displayName": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
-        obj2 = {"displayName": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
+        obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
+        obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
 
         self._backend._objects.new(key=actor["id"]).set_data(actor).store()
         self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
