@@ -17,17 +17,6 @@ class TestRiakBackend(object):
         })
         self._riak_client = self._backend._get_riak_client()
 
-    def test_create_stream(self):
-        stream_name = "user1:timeline"
-        stream = self._backend.create_stream(stream_name)
-        stream_data = stream.get_data()
-
-        saved_stream = self._backend._streams.get(stream.get_key())
-        saved_stream_dict = saved_stream.get_data()
-
-        eq_(stream_data, saved_stream_dict)
-        saved_stream.delete()
-
     def test_create_object(self):
         self._backend._objects.get('1234').delete()
 
@@ -41,6 +30,8 @@ class TestRiakBackend(object):
         actstream_obj.delete()
 
     def test_create_activity(self):
+        self._backend._activities.get('5').delete()
+
         actor_id = '1234'
         object_id = '4353'
         #make sure these 2 keys don't exist anymore
@@ -64,6 +55,8 @@ class TestRiakBackend(object):
         eq_(self._backend._objects.get(object_id).get_data(), obj)
 
     def test_create_activity_maintains_extra_keys(self):
+        self._backend._activities.get('5').delete()
+
         actor_id = '1234'
         object_id = '4353'
         #make sure these 2 keys don't exist anymore
@@ -96,6 +89,8 @@ class TestRiakBackend(object):
         eq_(act_obj_dict["other"], other)
 
     def test_create_activity_with_actor_already_exists(self):
+        self._backend._activities.get('5').delete()
+
         actor_id = '1234'
         object_id = '4353'
         #make sure these 2 keys don't exist anymore
@@ -189,6 +184,11 @@ class TestRiakBackend(object):
         eq_(actual, expected)
 
     def test__get_many_activities(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+        self._backend._activities.get('3').delete()
+        self._backend._activities.get('4').delete()
+        self._backend._activities.get('5').delete()
 
         self._backend.create_activity({"id": 1, "title": "Stream Item", "verb": "post", "actor": "1234", "object": "5678"})
         self._backend.create_activity({"id": 2, "title": "Stream Item", "verb": "post", "actor": "1234", "object": "5678"})
@@ -197,7 +197,47 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": "1234", "object": "5678"})
 
         activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'])
-        activities = sorted(activities, key=lambda x: int(x["id"]))
 
         for i in range(1, 6):
             eq_(activities[i - 1]["id"], str(i))
+
+    def test_hydrate_activities(self):
+        actor_id = '1234'
+        actor_id2 = '4321'
+        actor_id3 = '9999'
+
+        object_id = '4353'
+        object_id2 = '7654'
+
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor_id2).delete()
+        self._backend._objects.get(actor_id3).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._objects.get(object_id2).delete()
+
+        actor = {"displayName": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        actor2 = {"displayName": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
+        actor3 = {"displayName": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
+
+        obj = {"displayName": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
+        obj2 = {"displayName": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
+
+        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
+        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
+
+        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
+        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
+
+        activities = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor_id, actor_id2], "object": object_id},
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor_id3, "object": [object_id, object_id2]},
+        ]
+
+        expected = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor, actor2], "object": obj},
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor3, "object": [obj, obj2]},
+        ]
+
+        result = self._backend.hydrate_activities(activities)
+        eq_(result, expected)

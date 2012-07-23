@@ -12,8 +12,7 @@ class Model(object):
     _required_fields = []
     _media_fields = []
     _reserved_fields = []
-    _object_fields = ['actor', 'generator', 'object', 'provider', 'target', 'author'
-        'image']
+    _object_fields = ['actor', 'generator', 'object', 'provider', 'target', 'author']
     _datetime_fields = ['published', 'updated']
 
     def __init__(self, object_dict, bucket=None, riak_object=None, *args, **kwargs):
@@ -69,14 +68,13 @@ class Model(object):
 
     def set_indexes(self, riak_object):
         #TODO: Need tests for this
-        #store a secondary index so we can search by it to check for duplicates
         riak_object.add_index("timestamp_int", self._get_timestamp())
         return riak_object
 
     def save(self):
         if self._bucket is None:
             raise SunspearInvalidConfigurationError("You must pass a riak object to save() or in the constructor.")
-        _riak_object = self._bucket.new(key=str(self._dict["id"]))
+        _riak_object = self._bucket.new(key=self._dict["id"])
         self._riak_object = _riak_object
 
         self.validate()
@@ -161,6 +159,11 @@ class Activity(Model):
                 self._dict[key] = value.get_dict()["id"]
                 objs_created.append(value)
         super(Activity, self).save()
+
+    def riak_validate(self):
+        #TODO Need tests for this
+        if self._bucket.get(self._dict["id"]).exists():
+            raise SunspearValidationException("Object with ID already exists")
 
     def set_indexes(self, riak_object):
         super(Activity, self).set_indexes(riak_object)
