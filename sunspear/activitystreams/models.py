@@ -293,7 +293,7 @@ class ReplyActivity(Activity):
         activity = Activity()
         activity.get(key=self._dict['object']['inReplyTo']['id'])
         activity._dict['replies']['totalItems'] -= 1
-        activity._dict['replies']['items'] = filter(lambda x: x["id"] != key)
+        activity._dict['replies']['items'] = filter(lambda x: x["id"] != key, activity._dict['replies']['items'])
 
         self.save()
         activity.save()

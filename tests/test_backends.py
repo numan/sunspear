@@ -242,6 +242,77 @@ class TestRiakBackend(object):
         result = self._backend.hydrate_activities(activities)
         eq_(result, expected)
 
+    def test_hydrate_likes_and_comments(self):
+        actor_id = '1234'
+        actor_id2 = '4321'
+        actor_id3 = '9999'
+
+        object_id = '4353'
+        object_id2 = '7654'
+
+        replies_1 = {
+            'totalItems': 1,
+            'items': [{'author': actor_id, 'content': 'Hello'}]
+        }
+        likes_1 = {
+            'totalItems': 2,
+            'items': [{'author': actor_id, 'verb': 'like'}, {'author': actor_id2, 'verb': 'like'}]
+        }
+
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor_id2).delete()
+        self._backend._objects.get(actor_id3).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._objects.get(object_id2).delete()
+
+        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        actor2 = {"objectType": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
+        actor3 = {"objectType": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
+
+        obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z',
+            'replies': replies_1,
+            'likes': likes_1,
+        }
+        obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
+
+        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
+        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
+
+        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
+        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
+
+        activities = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor_id, actor_id2], "object": object_id,
+                'replies': {
+                    'totalItems': 1,
+                    'items': [{'author': actor_id, 'content': 'Hello'}]
+                },
+                'likes': {
+                    'totalItems': 2,
+                    'items': [{'author': actor_id, 'verb': 'like'}, {'author': actor_id2, 'verb': 'like'}]
+                },
+            },
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor_id3, "object": [object_id, object_id2]},
+        ]
+
+        expected = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor, actor2], "object": obj,
+                'replies': {
+                    'totalItems': 1,
+                    'items': [{'author': actor, 'content': 'Hello'}]
+                },
+                'likes': {
+                    'totalItems': 2,
+                    'items': [{'author': actor, 'verb': 'like'}, {'author': actor2, 'verb': 'like'}]
+                },
+            },
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor3, "object": [obj, obj2]},
+        ]
+
+        result = self._backend.hydrate_activities(activities)
+        eq_(result, expected)
+
     def test_create_reply(self):
         self._backend._activities.get('5').delete()
 

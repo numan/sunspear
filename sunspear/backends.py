@@ -147,9 +147,10 @@ class RiakBackend(object):
         object_ids = set()
         for activity in activities:
             object_ids.update(_extract_object_keys(activity))
-            if 'replies' in activity and activity['replies']['items']:
-                for reply in activity['replies']['items']:
-                    object_ids.update(_extract_object_keys(reply))
+            for collection in ['replies', 'likes']:
+                if collection in activity and activity[collection]['items']:
+                    for item in activity[collection]['items']:
+                        object_ids.update(_extract_object_keys(item))
 
         #Get the ids of the objects we have collected
         objects = self._get_many_objects(object_ids)
@@ -158,9 +159,10 @@ class RiakBackend(object):
         #replace the object ids with the hydrated objects
         for activity in activities:
             activity = _hydrate_object_keys(activity, objects_dict)
-            if 'replies' in activity and activity['replies']['items']:
-                for reply in activity['replies']['items']:
-                    reply = _hydrate_object_keys(activity, objects_dict)
+            for collection in ['replies', 'likes']:
+                if collection in activity and activity[collection]['items']:
+                    for i, item in enumerate(activity[collection]['items']):
+                        activity[collection]['items'][i] = _hydrate_object_keys(item, objects_dict)
 
         return activities
 
