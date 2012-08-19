@@ -6,7 +6,6 @@ from dateutil.parser import parse
 import uuid
 import datetime
 import calendar
-import copy
 
 
 class Model(object):
@@ -259,9 +258,10 @@ class Activity(Model):
     def parse_data(self, data, *args, **kwargs):
         #TODO Rename to jsonify_dict
         _parsed_data = super(Activity, self).parse_data(data, *args, **kwargs)
-        if 'replies' in _parsed_data:
+        if 'replies' in _parsed_data and _parsed_data['replies']['items']:
             for i, comment in enumerate(_parsed_data['replies']['items']):
                 _parsed_data['replies']['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
+        if 'likes' in _parsed_data and _parsed_data['likes']['items']:
             for i, comment in enumerate(_parsed_data['likes']['items']):
                 _parsed_data['likes']['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
 
