@@ -40,7 +40,8 @@ class Model(object):
                 raise SunspearValidationException("Required field missing: %s" % field)
 
         for field in self._reserved_fields:
-            if self._dict.get(field, None):
+            if (self._riak_object is None or \
+                not self._riak_object.exists()) and self._dict.get(field, None) is not None:
                 raise SunspearValidationException("Reserved field name used: %s" % field)
 
         for field in self._media_fields:
@@ -51,7 +52,7 @@ class Model(object):
             if self._dict.get(field, None) and isinstance(self._dict.get(field, None), Model):
                 self._dict.get(field).validate()
 
-    def parse_data(self, data):
+    def parse_data(self, data, *args, **kwargs):
         #TODO Rename to jsonify_dict
         _parsed_data = data.copy()
 
@@ -62,8 +63,8 @@ class Model(object):
             if c in _parsed_data.keys() and _parsed_data[c] and isinstance(_parsed_data[c], Model):
                 _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
         for k, v in _parsed_data.items():
-            if v == [] or v == {}:
-                _parsed_data[k] = None
+            if isinstance(v, dict):
+                _parsed_data[k] = self.parse_data(v)
 
         return _parsed_data
 
@@ -72,16 +73,26 @@ class Model(object):
         riak_object.add_index("timestamp_int", self._get_timestamp())
         return riak_object
 
-    def save(self):
+    def save(self, *args, **kwargs):
         if self._bucket is None:
             raise SunspearInvalidConfigurationError("You must pass a riak object to save() or in the constructor.")
-        _riak_object = self._bucket.new(key=self._dict["id"])
-        self._riak_object = _riak_object
+
+        if self._riak_object is None:
+            _riak_object = self._bucket.new(key=self._dict["id"])
+            self._riak_object = _riak_object
+        else:
+            _riak_object = self._riak_object
 
         self.validate()
-        self.riak_validate()
+        self.riak_validate(*args, **kwargs)
 
-        parsed_data = self.parse_data(self._dict)
+        #we are suppose to maintain our own published and updated fields
+        if 'published' in self._reserved_fields and not self._dict.get('published', None):
+            self._dict['published'] = datetime.datetime.utcnow()
+        elif 'updated' in self._reserved_fields:
+            self._dict['updated'] = datetime.datetime.utcnow()
+
+        parsed_data = self.parse_data(self._dict, *args, **kwargs)
 
         _riak_object.set_data(parsed_data)
         _riak_object = self.set_indexes(_riak_object)
@@ -96,6 +107,7 @@ class Model(object):
         #TODO need tests for this
         if key is None and id is None:
             raise SunspearValidationException("You must provide either ``key`` or ``id`` to get an object.")
+        key = str(key)
 
         riak_obj = self._bucket.get(key)
         if not riak_obj.exists():
@@ -163,7 +175,7 @@ class Activity(Model):
         if 'likes' not in self._dict:
             self._dict['likes'] = {'totalItems': 0, 'items': []}
 
-    def save(self):
+    def save(self, *args, **kwargs):
         #if things in the object field seem like they are new
         objs_created = []
         for key, value in self._dict.items():
@@ -176,32 +188,61 @@ class Activity(Model):
                     raise
                 self._dict[key] = value.get_dict()["id"]
                 objs_created.append(value)
-        super(Activity, self).save()
 
-    def riak_validate(self):
+        super(Activity, self).save(*args, **kwargs)
+
+    def riak_validate(self, update=False, *args, **kwargs):
         #TODO Need tests for this
-        if self._bucket.get(self._dict["id"]).exists():
+        if not update and self._bucket.get(self._dict["id"]).exists():
             raise SunspearValidationException("Object with ID already exists")
 
     def create_reply(self, actor, reply):
-        reply_activity = ReplyActivity({
+        return self._create_activity_subitem(actor, reply, verb="reply", objectType="reply", collection="replies", activityClass=ReplyActivity)
+
+    def create_like(self, actor):
+        return self._create_activity_subitem(actor, verb="like", objectType="like", collection="likes", activityClass=LikeActivity)
+
+    def _create_activity_subitem(self, actor, content="", verb="reply", objectType="reply", collection="replies", activityClass=None):
+        in_reply_to_dict = {
+            'objectType': 'activity',
+            'displayName': self._dict['verb'],
+            'id': self._dict['id'],
+            'published': self._dict['published']
+        }
+        reply_obj = {
+            'objectType': objectType,
+            'id': self._get_new_uuid(),
+            'published': datetime.datetime.utcnow(),
+            'content': content,
+            'inReplyTo': [in_reply_to_dict],
+        }
+
+        reply_dict = {
             'actor': actor,
-            'object': {'objectType': 'reply', 'id': self._get_new_uuid(), 'published': datetime.datetime.utcnow(), 'content': reply},
-            'target': self._dict['actor'],
-            'verb': 'reply',
-            'inReplyTo': {'objectType': 'activity_ref', 'displayName': self._dict['verb'], 'id': self._get_new_uuid(), 'published': self._dict['published'], 'activityId': self._dict['id']}
-        }, bucket=self._bucket, objects_bucket=self._objects_bucket)
-        reply_activity.save()
-        reply_dict = reply_activity.get_dict()
+            'object': reply_obj,
+            'target': self._dict['id'],
+            'activity_author': self._dict['actor'],
+            'verb': verb
+        }
+
+        if isinstance(content, dict):
+            reply_dict['object'].update(content)
+
+        _activity = activityClass(reply_dict, activity_id=self._dict['id'], bucket=self._bucket, objects_bucket=self._objects_bucket)
+        _activity.save()
+
+        _activity_data = self.get_riak_object().get_data()
 
         #inReplyTo is implicit when it is part of an actiity
-        del reply_dict['inReplyTo']
-        self._dict['replies']['totalItems'] += 1
+        del reply_dict['object']['inReplyTo']
+        reply_dict['object']['author'] = _activity_data['actor']
+        self._dict[collection]['totalItems'] += 1
         #insert the newest comment at the top of the list
-        self._dict['replies']['items'].insert(0, reply_dict)
-        self.save()
+        self._dict[collection]['items'].insert(0, reply_dict['object'])
 
-        return reply_activity, self
+        self.save(update=True)
+
+        return _activity._riak_object, self._riak_object
 
     def set_indexes(self, riak_object):
         super(Activity, self).set_indexes(riak_object)
@@ -215,12 +256,31 @@ class Activity(Model):
 
         return riak_object
 
+    def parse_data(self, data, *args, **kwargs):
+        #TODO Rename to jsonify_dict
+        _parsed_data = super(Activity, self).parse_data(data, *args, **kwargs)
+        if 'replies' in _parsed_data:
+            for i, comment in enumerate(_parsed_data['replies']['items']):
+                _parsed_data['replies']['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
+            for i, comment in enumerate(_parsed_data['likes']['items']):
+                _parsed_data['likes']['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
+
+        return _parsed_data
+
 
 class ReplyActivity(Activity):
+    def __init__(self, object_dict, *args, **kwargs):
+
+        super(ReplyActivity, self).__init__(object_dict, *args, **kwargs)
+
+        del self._dict['replies']
+        del self._dict['likes']
+        self._activity_id = kwargs.get('activity_id', None)
+
     def set_indexes(self, riak_object):
         super(ReplyActivity, self).set_indexes(riak_object)
         #TODO: Need tests for this
-        riak_object.add_index("inreplyto_bin", str(self._dict['inReplyTo']['activityId']))
+        riak_object.add_index("inreplyto_bin", str(self._activity_id))
 
         return riak_object
 
@@ -231,12 +291,30 @@ class ReplyActivity(Activity):
 
         #clean up the reference from the original activity
         activity = Activity()
-        activity.get(key=self._dict['inReplyTo']['activityId'])
+        activity.get(key=self._dict['object']['inReplyTo']['id'])
         activity._dict['replies']['totalItems'] -= 1
         activity._dict['replies']['items'] = filter(lambda x: x["id"] != key)
 
         self.save()
         activity.save()
+
+
+class LikeActivity(ReplyActivity):
+    def delete(self, key=None):
+        self.get(key=key)
+        if self._dict['verb'] != 'reply':
+            raise SunspearValidationException("Trying to delete something that is not a reply.")
+
+        #clean up the reference from the original activity
+        activity = Activity()
+        activity.get(key=self._dict['object']['inReplyTo']['id'])
+        activity._dict['likes']['totalItems'] -= 1
+        activity._dict['likes']['items'] = filter(lambda x: x["id"] != key)
+
+        self.save()
+        activity.save()
+
+        return activity._riak_object
 
 
 class Object(Model):

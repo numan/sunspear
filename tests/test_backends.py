@@ -241,3 +241,110 @@ class TestRiakBackend(object):
 
         result = self._backend.hydrate_activities(activities)
         eq_(result, expected)
+
+    def test_create_reply(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        reply_activity_obj = self._backend.create_reply(5, actor2_id, "This is a reply.")
+        reply_activity_dict = reply_activity_obj.get_data()
+        activity_obj_dict = self._backend._activities.get('5').get_data()
+
+        eq_(reply_activity_dict['activity_author'], actor_id)
+        eq_(reply_activity_dict['target'], '5')
+        eq_(reply_activity_dict['actor'], actor2_id)
+        eq_(reply_activity_dict['verb'], 'reply')
+
+        eq_(activity_obj_dict['replies']['totalItems'], 1)
+        eq_(activity_obj_dict['replies']['items'][0]['content'], "This is a reply.")
+        ok_('author' in activity_obj_dict['replies']['items'][0])
+        ok_(isinstance(activity_obj_dict['replies']['items'][0]['author'], basestring))
+
+    def test_create_reply_as_dict(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '1234'
+        object_id = '4353'
+        reply_id = '9999'
+        reply_dict = {
+            'id': reply_id,
+            'content': 'This is my reply.',
+            'metadata': 'I can put whatever I want here.',
+        }
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._objects.get(reply_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        reply_activity_obj = self._backend.create_reply(5, actor2_id, reply_dict)
+        reply_activity_dict = reply_activity_obj.get_data()
+        activity_obj_dict = self._backend._activities.get('5').get_data()
+
+        eq_(reply_activity_dict['activity_author'], actor_id)
+        eq_(reply_activity_dict['target'], '5')
+        eq_(reply_activity_dict['actor'], actor2_id)
+        eq_(reply_activity_dict['verb'], 'reply')
+
+        eq_(activity_obj_dict['replies']['totalItems'], 1)
+        ok_('author' in activity_obj_dict['replies']['items'][0])
+        ok_(isinstance(activity_obj_dict['replies']['items'][0]['author'], basestring))
+        eq_(activity_obj_dict['replies']['items'][0]['content'], "This is my reply.")
+        eq_(activity_obj_dict['replies']['items'][0]['metadata'], 'I can put whatever I want here.')
+
+    def test_create_like(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        like_activity_obj = self._backend.create_like(5, actor2_id)
+        like_activity_dict = like_activity_obj.get_data()
+        activity_obj_dict = self._backend._activities.get('5').get_data()
+
+        eq_(like_activity_dict['activity_author'], actor_id)
+        eq_(like_activity_dict['target'], '5')
+        eq_(like_activity_dict['actor'], actor2_id)
+        eq_(like_activity_dict['verb'], 'like')
+
+        eq_(activity_obj_dict['likes']['totalItems'], 1)
+        eq_(activity_obj_dict['likes']['items'][0]['content'], "")
+        ok_('author' in activity_obj_dict['likes']['items'][0])
+        ok_(isinstance(activity_obj_dict['likes']['items'][0]['author'], basestring))

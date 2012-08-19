@@ -79,10 +79,18 @@ class RiakBackend(object):
         return activity_obj.get_riak_object()
 
     def create_reply(self, activity_id, actor, reply):
-        activity = Activity(bucket=self._activities, objects_bucket=self._objects)
+        activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
         activity.get(key=activity_id)
 
-        return activity.create_comment(actor, reply)
+        reply_activity, activity = activity.create_reply(actor, reply)
+        return reply_activity
+
+    def create_like(self, activity_id, actor):
+        activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
+        activity.get(key=activity_id)
+
+        like_activity, activity = activity.create_like(actor)
+        return like_activity
 
     def delete_reply(self, reply_id):
         reply = ReplyActivity(bucket=self._activities, objects_bucket=self._objects)
