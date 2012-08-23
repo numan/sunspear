@@ -242,77 +242,6 @@ class TestRiakBackend(object):
         result = self._backend.hydrate_activities(activities)
         eq_(result, expected)
 
-    def test_hydrate_likes_and_comments(self):
-        actor_id = '1234'
-        actor_id2 = '4321'
-        actor_id3 = '9999'
-
-        object_id = '4353'
-        object_id2 = '7654'
-
-        replies_1 = {
-            'totalItems': 1,
-            'items': [{'author': actor_id, 'content': 'Hello'}]
-        }
-        likes_1 = {
-            'totalItems': 2,
-            'items': [{'author': actor_id, 'verb': 'like'}, {'author': actor_id2, 'verb': 'like'}]
-        }
-
-        self._backend._objects.get(actor_id).delete()
-        self._backend._objects.get(actor_id2).delete()
-        self._backend._objects.get(actor_id3).delete()
-        self._backend._objects.get(object_id).delete()
-        self._backend._objects.get(object_id2).delete()
-
-        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
-        actor2 = {"objectType": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
-        actor3 = {"objectType": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
-
-        obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z',
-            'replies': replies_1,
-            'likes': likes_1,
-        }
-        obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
-
-        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
-        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
-        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
-
-        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
-        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
-
-        activities = [
-            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor_id, actor_id2], "object": object_id,
-                'replies': {
-                    'totalItems': 1,
-                    'items': [{'author': actor_id, 'content': 'Hello'}]
-                },
-                'likes': {
-                    'totalItems': 2,
-                    'items': [{'author': actor_id, 'verb': 'like'}, {'author': actor_id2, 'verb': 'like'}]
-                },
-            },
-            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor_id3, "object": [object_id, object_id2]},
-        ]
-
-        expected = [
-            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor, actor2], "object": obj,
-                'replies': {
-                    'totalItems': 1,
-                    'items': [{'author': actor, 'content': 'Hello'}]
-                },
-                'likes': {
-                    'totalItems': 2,
-                    'items': [{'author': actor, 'verb': 'like'}, {'author': actor2, 'verb': 'like'}]
-                },
-            },
-            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor3, "object": [obj, obj2]},
-        ]
-
-        result = self._backend.hydrate_activities(activities)
-        eq_(result, expected)
-
     def test_create_reply(self):
         self._backend._activities.get('5').delete()
 
@@ -342,15 +271,15 @@ class TestRiakBackend(object):
         eq_(reply_activity_dict['verb'], 'reply')
 
         eq_(activity_obj_dict['replies']['totalItems'], 1)
-        eq_(activity_obj_dict['replies']['items'][0]['content'], "This is a reply.")
-        ok_('author' in activity_obj_dict['replies']['items'][0])
-        ok_(isinstance(activity_obj_dict['replies']['items'][0]['author'], basestring))
+        eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
+        eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
+        eq_(activity_obj_dict['replies']['items'][0]['actor'], actor2_id)
 
     def test_create_reply_as_dict(self):
         self._backend._activities.get('5').delete()
 
         actor_id = '1234'
-        actor2_id = '1234'
+        actor2_id = '4321'
         object_id = '4353'
         reply_id = '9999'
         reply_dict = {
@@ -382,16 +311,15 @@ class TestRiakBackend(object):
         eq_(reply_activity_dict['verb'], 'reply')
 
         eq_(activity_obj_dict['replies']['totalItems'], 1)
-        ok_('author' in activity_obj_dict['replies']['items'][0])
-        ok_(isinstance(activity_obj_dict['replies']['items'][0]['author'], basestring))
-        eq_(activity_obj_dict['replies']['items'][0]['content'], "This is my reply.")
-        eq_(activity_obj_dict['replies']['items'][0]['metadata'], 'I can put whatever I want here.')
+        eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
+        eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
+        eq_(activity_obj_dict['replies']['items'][0]['actor'], actor2_id)
 
     def test_create_like(self):
         self._backend._activities.get('5').delete()
 
         actor_id = '1234'
-        actor2_id = '1234'
+        actor2_id = '4321'
         object_id = '4353'
         #make sure these 2 keys don't exist anymore
         self._backend._objects.get(actor_id).delete()
@@ -416,6 +344,254 @@ class TestRiakBackend(object):
         eq_(like_activity_dict['verb'], 'like')
 
         eq_(activity_obj_dict['likes']['totalItems'], 1)
-        eq_(activity_obj_dict['likes']['items'][0]['content'], "")
-        ok_('author' in activity_obj_dict['likes']['items'][0])
-        ok_(isinstance(activity_obj_dict['likes']['items'][0]['author'], basestring))
+        eq_(activity_obj_dict['likes']['items'][0]['object']['id'], like_activity_dict['id'])
+        eq_(activity_obj_dict['likes']['items'][0]['verb'], 'like')
+        eq_(activity_obj_dict['likes']['items'][0]['actor'], actor2_id)
+
+
+
+class TestRiakBackendHydrate(object):
+    def setUp(self):
+        self._backend = RiakBackend({
+            'hosts': [{'port': 8094}, {'port': 8093}, {'port': 8092}, {'port': 8091}]
+        })
+        self._riak_client = self._backend._get_riak_client()
+
+    def test_hydrate_activities_with_replies(self):
+        actor_id = '1234'
+        actor_id2 = '4321'
+        actor_id3 = '31415'
+
+        object_id = '4353'
+        object_id2 = '7654'
+
+        reply_obj_id = '9999'
+        reply_obj_id2 = '9998'
+
+        reply_activity_id = '8889'
+        reply_activity_id2 = '8888'
+
+        reply_1 = {
+            'objectType': 'reply',
+            'id': reply_obj_id,
+            'published': '2012-08-05T12:00:00Z',
+            'content': 'This is my first reply',
+            'inReplyTo': [],
+        }
+
+        reply_2 = {
+            'objectType': 'reply',
+            'id': reply_obj_id2,
+            'published': '2012-08-05T12:05:00Z',
+            'content': 'This is my second reply',
+            'inReplyTo': [],
+        }
+
+        reply_activity_1 = {
+            'actor': actor_id,
+            'object': reply_obj_id,
+            'target': actor_id3,
+            'verb': 'reply',
+            'id': reply_activity_id,
+        }
+
+        reply_activity_2 = {
+            'actor': actor_id2,
+            'object': reply_obj_id2,
+            'target': actor_id,
+            'verb': 'reply',
+            'id': reply_activity_id2,
+        }
+
+        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        actor2 = {"objectType": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
+        actor3 = {"objectType": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
+
+        obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'
+        }
+        obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
+
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor_id2).delete()
+        self._backend._objects.get(actor_id3).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._objects.get(object_id2).delete()
+        self._backend._objects.get(reply_obj_id).delete()
+        self._backend._objects.get(reply_obj_id2).delete()
+
+        self._backend._activities.get(reply_activity_id).delete()
+        self._backend._activities.get(reply_activity_id2).delete()
+
+        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
+        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
+        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
+        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
+        self._backend._objects.new(key=reply_1["id"]).set_data(reply_1).store()
+        self._backend._objects.new(key=reply_2["id"]).set_data(reply_2).store()
+
+        self._backend._activities.new(key=reply_activity_1["id"]).set_data(reply_activity_1).store()
+        self._backend._activities.new(key=reply_activity_2["id"]).set_data(reply_activity_2).store()
+
+        activities = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor_id, actor_id2], "object": object_id,
+                'replies': {
+                    'totalItems': 1,
+                    'items': [{'actor': actor_id, 'verb': 'reply', 'object': {'objectType': 'activity'}}]
+                },
+            },
+            {"id": 1, "title": "Stream Item 2", "verb": "post", "actor": actor_id3, "object": [object_id, object_id2]},
+        ]
+        activities[0]['replies']['items'][0]['object'].update(reply_activity_1)
+
+        expected = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor, actor2], "object": obj,
+                'replies': {
+                    'totalItems': 1,
+                    'items': [{'actor': actor, 'verb': 'reply', 'object': {
+                        'objectType': 'activity',
+                        'actor': actor,
+                        'object': reply_1,
+                        'target': actor3,
+                        'verb': 'reply',
+                        'id': reply_activity_id,
+                    }}]
+                },
+            },
+            {"id": 1, "title": "Stream Item 2", "verb": "post", "actor": actor3, "object": [obj, obj2]},
+        ]
+
+        result = self._backend.hydrate_activities(activities)
+        eq_(result, expected)
+
+    def test_get_activities_with_replies(self):
+        actor_id = '1234'
+        actor_id2 = '4321'
+        actor_id3 = '31415'
+
+        object_id = '4353'
+        object_id2 = '7654'
+
+        reply_obj_id = '9999'
+        reply_obj_id2 = '9998'
+
+        reply_activity_id = '8889'
+        reply_activity_id2 = '8888'
+
+        activity_id = '5555'
+
+        reply_1 = {
+            'objectType': 'reply',
+            'id': reply_obj_id,
+            'published': '2012-08-05T12:00:00Z',
+            'content': 'This is my first reply',
+            'inReplyTo': [],
+        }
+
+        reply_2 = {
+            'objectType': 'reply',
+            'id': reply_obj_id2,
+            'published': '2012-08-05T12:05:00Z',
+            'content': 'This is my second reply',
+            'inReplyTo': [],
+        }
+
+        reply_activity_1 = {
+            'actor': actor_id,
+            'object': reply_obj_id,
+            'target': actor_id3,
+            'verb': 'reply',
+            'id': reply_activity_id,
+        }
+
+        reply_activity_2 = {
+            'actor': actor_id2,
+            'object': reply_obj_id2,
+            'target': actor_id,
+            'verb': 'reply',
+            'id': reply_activity_id2,
+        }
+
+        activity_1 = {
+            "id": activity_id,
+            "title": "Stream Item",
+            "verb": "post",
+            "actor": actor_id2,
+            "object": object_id,
+            'replies': {
+                'totalItems': 2,
+                'items': [
+                    {'actor': actor_id, 'verb': 'reply', 'object': {'objectType': 'activity', 'id': reply_activity_id}},
+                    {'actor': actor_id, 'verb': 'reply', 'object': {'objectType': 'activity', 'id': reply_activity_id2}},
+                ]
+            },
+        }
+
+        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        actor2 = {"objectType": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
+        actor3 = {"objectType": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
+
+        obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'
+        }
+        obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
+
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor_id2).delete()
+        self._backend._objects.get(actor_id3).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._objects.get(object_id2).delete()
+        self._backend._objects.get(reply_obj_id).delete()
+        self._backend._objects.get(reply_obj_id2).delete()
+
+        self._backend._activities.get(reply_activity_id).delete()
+        self._backend._activities.get(reply_activity_id2).delete()
+        self._backend._activities.get(activity_id).delete()
+
+        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
+        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
+        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
+        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
+        self._backend._objects.new(key=reply_1["id"]).set_data(reply_1).store()
+        self._backend._objects.new(key=reply_2["id"]).set_data(reply_2).store()
+
+        self._backend._activities.new(key=reply_activity_1["id"]).set_data(reply_activity_1).store()
+        self._backend._activities.new(key=reply_activity_2["id"]).set_data(reply_activity_2).store()
+        self._backend._activities.new(key=activity_1["id"]).set_data(activity_1).store()
+
+        expected = [
+            {"id": activity_id, "title": "Stream Item", "verb": "post", "actor": actor2, "object": obj,
+                'replies': {
+                    'totalItems': 2,
+                    'items': [
+                        {
+                            'actor': actor,
+                            'verb': 'reply',
+                            'object': {
+                                'objectType': 'activity',
+                                'actor': actor,
+                                'object': reply_1,
+                                'target': actor3,
+                                'verb': 'reply',
+                                'id': reply_activity_id,
+                            }
+                        },
+                        {
+                            'actor': actor,
+                            'verb': 'reply',
+                            'object': {
+                                'objectType': 'activity',
+                                'actor': actor2,
+                                'object': reply_2,
+                                'target': actor,
+                                'verb': 'reply',
+                                'id': reply_activity_id2,
+                            }
+                        },
+                    ]
+                },
+            },
+        ]
+
+        result = self._backend.get_activities(activity_ids=[activity_id])
+        eq_(result, expected)

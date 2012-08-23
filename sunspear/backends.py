@@ -111,6 +111,35 @@ class RiakBackend(object):
 
         activities = self._get_many_activities(activity_ids)
 
+        def _extract_activity_keys(activity):
+            keys = []
+            for activity_key in Model._object_fields:
+                if activity_key not in activity:
+                    continue
+                obj = activity.get(activity_key)
+                if isinstance(obj, dict) and obj.get('objectType', None) == 'activity':
+                    keys.append(obj['id'])
+            return keys
+
+        #We might also have to get sub activities for things like replies and likes
+        sub_activity_ids = set()
+        for activity in activities:
+            for collection in ['replies', 'likes']:
+                if collection in activity and activity[collection]['items']:
+                    for item in activity[collection]['items']:
+                        sub_activity_ids.update(_extract_activity_keys(item))
+
+        sub_activities = self._get_many_activities(sub_activity_ids)
+        sub_activities_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
+
+        #Hydrate out any subactivities we may have
+        #TODO: Generalize this some more
+        for activity in activities:
+            for collection in ['replies', 'likes']:
+                if collection in activity and activity[collection]['items']:
+                    for item in activity[collection]['items']:
+                        item['object'].update(sub_activities_dict[item['object']['id']])
+
         if group_by_attributes:
             _raw_group_actvities = groupby(activities, self._group_by_aggregator(group_by_attributes))
             return self.hydrate_activities(self._aggregate_activities(_raw_group_actvities))
@@ -125,6 +154,8 @@ class RiakBackend(object):
                 if object_key not in activity:
                     continue
                 objects = activity.get(object_key)
+                if isinstance(objects, dict) and objects.get('objectType', None) == 'activity':
+                    keys = keys + _extract_object_keys(objects)
                 if isinstance(objects, list):
                     keys = keys + objects
                 if isinstance(objects, basestring):
@@ -136,6 +167,8 @@ class RiakBackend(object):
                 if object_key not in activity:
                     continue
                 activity_objects = activity.get(object_key)
+                if isinstance(activity_objects, dict) and activity_objects.get('objectType', None) == 'activity':
+                    activity[object_key] = _hydrate_object_keys(activity_objects, objects_dict)
                 if isinstance(activity_objects, list):
                     activity[object_key] = [objects_dict.get(obj_id, {}) for obj_id in activity_objects]
                 if isinstance(activity_objects, basestring):

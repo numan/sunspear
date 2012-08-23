@@ -230,14 +230,21 @@ class Activity(Model):
         _activity = activityClass(reply_dict, activity_id=self._dict['id'], bucket=self._bucket, objects_bucket=self._objects_bucket)
         _activity.save()
 
-        _activity_data = self.get_riak_object().get_data()
+        _activity_data = _activity.get_riak_object().get_data()
 
-        #inReplyTo is implicit when it is part of an actiity
-        del reply_dict['object']['inReplyTo']
-        reply_dict['object']['author'] = _activity_data['actor']
+        _sub_dict = {
+            'actor': _activity_data['actor'],
+            'verb': verb,
+            'object': {
+                'objectType': 'activity',
+                'id': _activity_data['id'],
+            }
+        }
+
+        #inReplyTo is implicit when it is part of an activity
         self._dict[collection]['totalItems'] += 1
         #insert the newest comment at the top of the list
-        self._dict[collection]['items'].insert(0, reply_dict['object'])
+        self._dict[collection]['items'].insert(0, _sub_dict)
 
         self.save(update=True)
 
