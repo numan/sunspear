@@ -349,7 +349,6 @@ class TestRiakBackend(object):
         eq_(activity_obj_dict['likes']['items'][0]['actor'], actor2_id)
 
 
-
 class TestRiakBackendHydrate(object):
     def setUp(self):
         self._backend = RiakBackend({
@@ -370,7 +369,14 @@ class TestRiakBackendHydrate(object):
         self.reply_activity_id = '8889'
         self.reply_activity_id2 = '8888'
 
+        self.like_obj_id = '6669'
+        self.like_obj_id2 = '6669'
+
+        self.like_activity_id = '7779'
+        self.like_activity_id2 = '7778'
+
         self.activity_id = '5555'
+        self.activity_id2 = '5556'
 
         self.reply_1 = {
             'objectType': 'reply',
@@ -385,6 +391,20 @@ class TestRiakBackendHydrate(object):
             'id': self.reply_obj_id2,
             'published': '2012-08-05T12:05:00Z',
             'content': 'This is my second reply',
+            'inReplyTo': [],
+        }
+
+        self.like_1 = {
+            'objectType': 'like',
+            'id': self.like_obj_id,
+            'published': '2012-08-05T12:00:00Z',
+            'inReplyTo': [],
+        }
+
+        self.like_2 = {
+            'objectType': 'like',
+            'id': self.like_obj_id2,
+            'published': '2012-08-05T12:00:00Z',
             'inReplyTo': [],
         }
 
@@ -404,6 +424,22 @@ class TestRiakBackendHydrate(object):
             'id': self.reply_activity_id2,
         }
 
+        self.like_activity_1 = {
+            'actor': self.actor_id,
+            'object': self.like_obj_id,
+            'target': self.actor_id3,
+            'verb': 'like',
+            'id': self.like_activity_id,
+        }
+
+        self.like_activity_2 = {
+            'actor': self.actor_id,
+            'object': self.like_obj_id2,
+            'target': self.actor_id3,
+            'verb': 'like',
+            'id': self.like_activity_id2,
+        }
+
         self.activity_1 = {
             "id": self.activity_id,
             "title": "Stream Item",
@@ -416,6 +452,27 @@ class TestRiakBackendHydrate(object):
                     {'actor': self.actor_id, 'verb': 'reply', 'object': {'objectType': 'activity', 'id': self.reply_activity_id}},
                     {'actor': self.actor_id, 'verb': 'reply', 'object': {'objectType': 'activity', 'id': self.reply_activity_id2}},
                 ]
+            },
+        }
+
+        self.activity_2 = {
+            "id": self.activity_id2,
+            "title": "Stream Item",
+            "verb": "post",
+            "actor": self.actor_id2,
+            "object": self.object_id,
+            'replies': {
+                'totalItems': 2,
+                'items': [
+                    {'actor': self.actor_id, 'verb': 'reply', 'object': {'objectType': 'activity', 'id': self.reply_activity_id}},
+                    {'actor': self.actor_id, 'verb': 'reply', 'object': {'objectType': 'activity', 'id': self.reply_activity_id2}},
+                ]
+            },
+            "likes": {
+                'totalItems': 1,
+                'items': [
+                    {'actor': self.actor_id, 'verb': 'like', 'object': {'objectType': 'activity', 'id': self.like_activity_id}},
+                ],
             },
         }
 
@@ -433,9 +490,12 @@ class TestRiakBackendHydrate(object):
         self._backend._objects.get(self.object_id2).delete()
         self._backend._objects.get(self.reply_obj_id).delete()
         self._backend._objects.get(self.reply_obj_id2).delete()
+        self._backend._objects.get(self.like_obj_id).delete()
+        self._backend._objects.get(self.like_obj_id2).delete()
 
         self._backend._activities.get(self.reply_activity_id).delete()
         self._backend._activities.get(self.reply_activity_id2).delete()
+        self._backend._activities.get(self.like_activity_id).delete()
         self._backend._activities.get(self.activity_id).delete()
 
         self._backend._objects.new(key=self.actor["id"]).set_data(self.actor).store()
@@ -445,10 +505,15 @@ class TestRiakBackendHydrate(object):
         self._backend._objects.new(key=self.obj2["id"]).set_data(self.obj2).store()
         self._backend._objects.new(key=self.reply_1["id"]).set_data(self.reply_1).store()
         self._backend._objects.new(key=self.reply_2["id"]).set_data(self.reply_2).store()
+        self._backend._objects.new(key=self.like_1["id"]).set_data(self.like_1).store()
+        self._backend._objects.new(key=self.like_2["id"]).set_data(self.like_2).store()
 
         self._backend._activities.new(key=self.reply_activity_1["id"]).set_data(self.reply_activity_1).store()
         self._backend._activities.new(key=self.reply_activity_2["id"]).set_data(self.reply_activity_2).store()
+        self._backend._activities.new(key=self.like_activity_1["id"]).set_data(self.like_activity_1).store()
+        self._backend._activities.new(key=self.like_activity_2["id"]).set_data(self.like_activity_2).store()
         self._backend._activities.new(key=self.activity_1["id"]).set_data(self.activity_1).store()
+        self._backend._activities.new(key=self.activity_2["id"]).set_data(self.activity_2).store()
 
     def test_hydrate_activities_with_replies(self):
 
@@ -520,4 +585,60 @@ class TestRiakBackendHydrate(object):
         ]
 
         result = self._backend.get_activities(activity_ids=[self.activity_id])
+        eq_(result, expected)
+
+    def test_get_activities_with_likes_and_replies(self):
+        expected = [
+            {"id": self.activity_id2, "title": "Stream Item", "verb": "post", "actor": self.actor2, "object": self.obj,
+                'replies': {
+                    'totalItems': 2,
+                    'items': [
+                        {
+                            'actor': self.actor,
+                            'verb': 'reply',
+                            'object': {
+                                'objectType': 'activity',
+                                'actor': self.actor,
+                                'object': self.reply_1,
+                                'target': self.actor3,
+                                'verb': 'reply',
+                                'id': self.reply_activity_id,
+                            }
+                        },
+                        {
+                            'actor': self.actor,
+                            'verb': 'reply',
+                            'object': {
+                                'objectType': 'activity',
+                                'actor': self.actor2,
+                                'object': self.reply_2,
+                                'target': self.actor,
+                                'verb': 'reply',
+                                'id': self.reply_activity_id2,
+                            }
+                        },
+                    ]
+                },
+
+                'likes': {
+                    'totalItems': 1,
+                    'items': [
+                        {
+                            'actor': self.actor,
+                            'verb': 'like',
+                            'object': {
+                                'objectType': 'activity',
+                                'actor': self.actor,
+                                'object': self.like_1,
+                                'target': self.actor3,
+                                'verb': 'like',
+                                'id': self.like_activity_id,
+                            }
+                        },
+                    ]
+                }
+            },
+        ]
+
+        result = self._backend.get_activities(activity_ids=[self.activity_id2])
         eq_(result, expected)
