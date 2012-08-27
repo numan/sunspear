@@ -348,6 +348,13 @@ class TestRiakBackend(object):
         eq_(activity_obj_dict['likes']['items'][0]['verb'], 'like')
         eq_(activity_obj_dict['likes']['items'][0]['actor'], actor2_id)
 
+    def test_get_activities_doesnt_crash_for_missing_activities(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+
+        result = self._backend.get_activities(activity_ids=['1', '2'])
+        eq_(result, [])
+
 
 class TestRiakBackendHydrate(object):
     def setUp(self):
@@ -497,6 +504,7 @@ class TestRiakBackendHydrate(object):
         self._backend._activities.get(self.reply_activity_id2).delete()
         self._backend._activities.get(self.like_activity_id).delete()
         self._backend._activities.get(self.activity_id).delete()
+        self._backend._activities.get(self.activity_id2).delete()
 
         self._backend._objects.new(key=self.actor["id"]).set_data(self.actor).store()
         self._backend._objects.new(key=self.actor2["id"]).set_data(self.actor2).store()

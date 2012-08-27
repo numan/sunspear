@@ -33,15 +33,32 @@ JS_MAP = """
         return [value];
       }
       var newValues = Riak.mapValues(value, keyData, arg);
-      newValues = newValues.map(function(nv) { var parsedNv = JSON.parse(nv); parsedNv["timestamp"] = value.values[0].metadata.index.timestamp_int; return parsedNv; })
-      return newValues;
+      newValues = newValues.map(function(nv) {
+        try {
+            var parsedNv = JSON.parse(nv); parsedNv["timestamp"] = value.values[0].metadata.index.timestamp_int; return parsedNv;
+        } catch(e) {
+            return;
+        }
+      });
+      return newValues.filter(function(value){ return value; });
     }
 """
 
 JS_REDUCE = """
-    function(x,y) {
+    function(value, arg) {
+      var sortFunc = function(x,y) {
         if(x["timestamp"] == y["timestamp"]) return 0;
-        return x["timestamp"] > y["timestamp"] ? 1 : -1; }
+        return x["timestamp"] > y["timestamp"] ? 1 : -1;
+      }
+      var newValues = Riak.filterNotFound(value);
+      return newValues.sort(sortFunc);
+    }
+"""
+
+JS_REDUCE_OBJS = """
+    function(value, arg) {
+      return Riak.filterNotFound(value);
+    }
 """
 
 
@@ -137,15 +154,16 @@ class RiakBackend(object):
                     for item in activity[collection]['items']:
                         sub_activity_ids.update(_extract_activity_keys(item))
 
-        sub_activities = self._get_many_activities(sub_activity_ids)
-        sub_activities_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
+        if sub_activity_ids:
+            sub_activities = self._get_many_activities(sub_activity_ids)
+            sub_activities_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
 
-        #Hydrate out any subactivities we may have
-        for activity in activities:
-            for collection in ['replies', 'likes']:
-                if collection in activity and activity[collection]['items']:
-                    for i, item in enumerate(activity[collection]['items']):
-                        activity[collection]['items'][i] = _dehydrate_sub_activity(item, sub_activities_dict)
+            #Hydrate out any subactivities we may have
+            for activity in activities:
+                for collection in ['replies', 'likes']:
+                    if collection in activity and activity[collection]['items']:
+                        for i, item in enumerate(activity[collection]['items']):
+                            activity[collection]['items'][i] = _dehydrate_sub_activity(item, sub_activities_dict)
 
         if group_by_attributes:
             _raw_group_actvities = groupby(activities, self._group_by_aggregator(group_by_attributes))
@@ -207,6 +225,8 @@ class RiakBackend(object):
         return activities
 
     def _get_many_objects(self, object_ids):
+        if not object_ids:
+            return object_ids
         object_bucket_name = self._objects.get_name()
         objects = self._riak_backend
 
@@ -222,7 +242,9 @@ class RiakBackend(object):
         for activity_id in activity_ids:
             activities = activities.add(activity_bucket_name, str(activity_id))
 
-        return activities.map(JS_MAP).reduce_sort(JS_REDUCE).run()
+        result = activities.map(JS_MAP).reduce(JS_REDUCE).run()
+
+        return result if result else []
 
     def _aggregate_activities(self, group_by_attributes=[], grouped_activities=[]):
         """
