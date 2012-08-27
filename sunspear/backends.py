@@ -121,6 +121,14 @@ class RiakBackend(object):
                     keys.append(obj['id'])
             return keys
 
+        def _dehydrate_sub_activity(sub_activity, obj_list):
+            for activity_key in Model._object_fields:
+                if activity_key not in sub_activity:
+                    continue
+                if isinstance(sub_activity[activity_key], dict) and sub_activity[activity_key].get('objectType', None) == 'activity':
+                    sub_activity[activity_key].update(obj_list[sub_activity[activity_key]['id']])
+            return sub_activity
+
         #We might also have to get sub activities for things like replies and likes
         sub_activity_ids = set()
         for activity in activities:
@@ -133,12 +141,11 @@ class RiakBackend(object):
         sub_activities_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
 
         #Hydrate out any subactivities we may have
-        #TODO: Generalize this some more
         for activity in activities:
             for collection in ['replies', 'likes']:
                 if collection in activity and activity[collection]['items']:
-                    for item in activity[collection]['items']:
-                        item['object'].update(sub_activities_dict[item['object']['id']])
+                    for i, item in enumerate(activity[collection]['items']):
+                        activity[collection]['items'][i] = _dehydrate_sub_activity(item, sub_activities_dict)
 
         if group_by_attributes:
             _raw_group_actvities = groupby(activities, self._group_by_aggregator(group_by_attributes))
