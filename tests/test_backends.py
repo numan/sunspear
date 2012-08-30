@@ -245,7 +245,7 @@ class TestRiakBackend(object):
         eq_(activities[1]['id'], activity_4['id'])
         eq_(activities[2]['id'], activity_5['id'])
 
-    def test_hydrate_activities(self):
+    def test_dehydrate_activities(self):
         actor_id = '1234'
         actor_id2 = '4321'
         actor_id3 = '9999'
@@ -283,7 +283,7 @@ class TestRiakBackend(object):
             {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor3, "object": [obj, obj2]},
         ]
 
-        result = self._backend.hydrate_activities(activities)
+        result = self._backend.dehydrate_activities(activities)
         eq_(result, expected)
 
     def test_create_reply(self):
@@ -567,7 +567,7 @@ class TestRiakBackendHydrate(object):
         self._backend._activities.new(key=self.activity_1["id"]).set_data(self.activity_1).store()
         self._backend._activities.new(key=self.activity_2["id"]).set_data(self.activity_2).store()
 
-    def test_hydrate_activities_with_replies(self):
+    def test_dehydrate_activities_with_replies(self):
 
         activities = [
             {"id": 1, "title": "Stream Item", "verb": "post", "actor": [self.actor_id, self.actor_id2], "object": self.object_id,
@@ -597,7 +597,7 @@ class TestRiakBackendHydrate(object):
             {"id": 1, "title": "Stream Item 2", "verb": "post", "actor": self.actor3, "object": [self.obj, self.obj2]},
         ]
 
-        result = self._backend.hydrate_activities(activities)
+        result = self._backend.dehydrate_activities(activities)
         eq_(result, expected)
 
     def test_get_activities_with_replies(self):

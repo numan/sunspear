@@ -185,11 +185,11 @@ class RiakBackend(object):
 
         if group_by_attributes:
             _raw_group_actvities = groupby(activities, self._group_by_aggregator(group_by_attributes))
-            return self.hydrate_activities(self._aggregate_activities(_raw_group_actvities))
+            return self.dehydrate_activities(self._aggregate_activities(_raw_group_actvities))
         else:
-            return self.hydrate_activities(activities)
+            return self.dehydrate_activities(activities)
 
-    def hydrate_activities(self, activities):
+    def dehydrate_activities(self, activities):
 
         def _extract_object_keys(activity):
             keys = []
