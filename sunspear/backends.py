@@ -40,7 +40,25 @@ JS_MAP = """
             return;
         }
       });
+      //filter out undefinded things
       return newValues.filter(function(value){ return value; });
+    }
+"""
+
+JS_FILTER_REDUCE = """
+    function(value, arg) {
+        return value.filter(function(obj){
+            for (var filter in arg['filters']){
+                if (filter in obj) {
+                    for(var i in arg['filters'][filter]) {
+                        if (obj[filter] == arg['filters'][filter][i]) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        });
     }
 """
 
@@ -113,7 +131,7 @@ class RiakBackend(object):
         reply = ReplyActivity(bucket=self._activities, objects_bucket=self._objects)
         reply.delete(key=reply_id)
 
-    def get_activities(self, activity_ids=[], group_by_attributes=[]):
+    def get_activities(self, activity_ids=[], group_by_attributes=[], filters={}):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
         by.
@@ -126,7 +144,7 @@ class RiakBackend(object):
         if not activity_ids:
             return []
 
-        activities = self._get_many_activities(activity_ids)
+        activities = self._get_many_activities(activity_ids, filters=filters)
 
         def _extract_activity_keys(activity):
             keys = []
@@ -235,14 +253,19 @@ class RiakBackend(object):
 
         return objects.map("Riak.mapValuesJson").run()
 
-    def _get_many_activities(self, activity_ids=[]):
+    def _get_many_activities(self, activity_ids=[], filters={}):
         activity_bucket_name = self._activities.get_name()
         activities = self._riak_backend
 
         for activity_id in activity_ids:
             activities = activities.add(activity_bucket_name, str(activity_id))
 
-        result = activities.map(JS_MAP).reduce(JS_REDUCE).run()
+        result = activities.map(JS_MAP)
+
+        if filters:
+            result = result.reduce(JS_FILTER_REDUCE, options={'arg': {'filters': filters}})
+
+        result = result.reduce(JS_REDUCE).run()
 
         return result if result else []
 

@@ -201,6 +201,50 @@ class TestRiakBackend(object):
         for i in range(1, 6):
             eq_(activities[i - 1]["id"], str(i))
 
+    def test__get_many_activities_with_filtering(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+        self._backend._activities.get('3').delete()
+        self._backend._activities.get('4').delete()
+        self._backend._activities.get('5').delete()
+
+        self._backend.create_activity({"id": 1, "title": "Stream Item 1", "verb": "type1", "actor": "1234", "object": "5678"})
+        self._backend.create_activity({"id": 2, "title": "Stream Item 2", "verb": "type1", "actor": "1234", "object": "5678"})
+        self._backend.create_activity({"id": 3, "title": "Stream Item 3", "verb": "type3", "actor": "1234", "object": "5678"})
+        self._backend.create_activity({"id": 4, "title": "Stream Item 4", "verb": "type4", "actor": "1234", "object": "5678"})
+        self._backend.create_activity({"id": 5, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678"})
+
+        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], filters={'verb': ['type1', 'type3']})
+
+        eq_(len(activities), 3)
+        for i in range(1, 4):
+            eq_(activities[i - 1]["id"], str(i))
+
+    def test__get_many_activities_with_multiple_filters(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+        self._backend._activities.get('3').delete()
+        self._backend._activities.get('4').delete()
+        self._backend._activities.get('5').delete()
+
+        activity_1 = {"id": "1", "title": "Stream Item 1", "verb": "type1", "actor": "1234", "object": "5678"}
+        activity_2 = {"id": "2", "title": "Stream Item 2", "verb": "type1", "actor": "1235", "object": "5678"}
+        activity_3 = {"id": "3", "title": "Stream Item 3", "verb": "type3", "actor": "1236", "object": "5678"}
+        activity_4 = {"id": "4", "title": "Stream Item 4", "verb": "type4", "actor": "1237", "object": "5678"}
+        activity_5 = {"id": "5", "title": "Stream Item 5", "verb": "type5", "actor": "1238", "object": "5678"}
+
+        self._backend.create_activity(activity_1)
+        self._backend.create_activity(activity_2)
+        self._backend.create_activity(activity_3)
+        self._backend.create_activity(activity_4)
+        self._backend.create_activity(activity_5)
+
+        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], filters={'verb': ['type3'], 'actor': ['1237', '1238']})
+
+        eq_(activities[0]['id'], activity_3['id'])
+        eq_(activities[1]['id'], activity_4['id'])
+        eq_(activities[2]['id'], activity_5['id'])
+
     def test_hydrate_activities(self):
         actor_id = '1234'
         actor_id2 = '4321'
