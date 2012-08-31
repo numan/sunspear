@@ -10,6 +10,19 @@ from sunspear.exceptions import SunspearValidationException
 import datetime
 
 
+class TestActivityModel(object):
+    def test_initialize(self):
+        act = Activity({"id": 5, "verb": "post", \
+            "actor": {"objectType": "actor", "id": 1232, "published": "today"}, \
+            "target": {"objectType": "target", "id": 4325, "published": "today"}, \
+            "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock())
+
+        act_dict = act._dict
+        ok_(isinstance(act_dict['actor'], Object))
+        ok_(isinstance(act_dict['target'], Object))
+        ok_(isinstance(act_dict['object'], Object))
+
+
 class TestActivity(object):
 
     def test_required_fields_all_there(self):
@@ -57,6 +70,42 @@ class TestActivity(object):
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: updated")
+
+    def test_disallowed_field_to(self):
+        try:
+            Activity({"id": 5, "title": "Stream Item", "verb": "post", "to": [], \
+                "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+        except SunspearValidationException as e:
+            ok_(isinstance(e, SunspearValidationException))
+            eq_(e.message, "Reserved field name used: to")
+
+    def test_disallowed_field_bto(self):
+        try:
+            Activity({"id": 5, "title": "Stream Item", "verb": "post", "bto": [], \
+                "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+        except SunspearValidationException as e:
+            ok_(isinstance(e, SunspearValidationException))
+            eq_(e.message, "Reserved field name used: bto")
+
+    def test_disallowed_field_cc(self):
+        try:
+            Activity({"id": 5, "title": "Stream Item", "verb": "post", "cc": [], \
+                "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+        except SunspearValidationException as e:
+            ok_(isinstance(e, SunspearValidationException))
+            eq_(e.message, "Reserved field name used: cc")
+
+    def test_disallowed_field_bcc(self):
+        try:
+            Activity({"id": 5, "title": "Stream Item", "verb": "post", "bcc": [], \
+                "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+        except SunspearValidationException as e:
+            ok_(isinstance(e, SunspearValidationException))
+            eq_(e.message, "Reserved field name used: bcc")
 
 
 class TestMediaLink(object):

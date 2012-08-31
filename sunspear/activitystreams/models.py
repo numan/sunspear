@@ -14,6 +14,9 @@ class Model(object):
     _reserved_fields = []
     _object_fields = ['actor', 'generator', 'object', 'provider', 'target', 'author']
     _datetime_fields = ['published', 'updated']
+    _response_fields = []
+    _direct_audience_targeting = []
+    _indirect_audience_targeting = []
 
     def __init__(self, object_dict, bucket=None, riak_object=None, *args, **kwargs):
         self._riak_object = riak_object
@@ -27,8 +30,12 @@ class Model(object):
         for key, value in object_dict.iteritems():
             if key in self._media_fields and isinstance(value, dict):
                 _dict[key] = MediaLink(value)
-            elif key in self._object_fields and isinstance(value, dict):
+            elif key in self._object_fields and key not in self._response_fields and isinstance(value, dict):
                 _dict[key] = Object(value)
+            elif key in self._direct_audience_targeting:
+                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in object_dict[key]]
+            elif key in self._indirect_audience_targeting:
+                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in object_dict[key]]
             else:
                 _dict[key] = value
         return _dict
@@ -38,7 +45,7 @@ class Model(object):
             if not self._dict.get(field, None):
                 raise SunspearValidationException("Required field missing: %s" % field)
 
-        for field in self._reserved_fields:
+        for field in self._reserved_fields + self._direct_audience_targeting + self._indirect_audience_targeting:
             if (self._riak_object is None or \
                 not self._riak_object.exists()) and self._dict.get(field, None) is not None:
                 raise SunspearValidationException("Reserved field name used: %s" % field)
@@ -62,7 +69,7 @@ class Model(object):
             if c in _parsed_data.keys() and _parsed_data[c] and isinstance(_parsed_data[c], Model):
                 _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
         for k, v in _parsed_data.items():
-            if isinstance(v, dict):
+            if isinstance(v, dict) and k not in self._response_fields:
                 _parsed_data[k] = self.parse_data(v)
 
         return _parsed_data
@@ -112,7 +119,7 @@ class Model(object):
         if not riak_obj.exists():
             raise SunspearNotFoundException("Could not find the object by ``key`` or ``id`")
         self._riak_object = riak_obj
-        self._dict = self.objectify_dict(self._riak_object.get_data())
+        self._dict.update(self.objectify_dict(self._riak_object.get_data()))
 
     def _get_keys_by_index(self, index_name='clientid_bin', index_value=""):
         client = self._riak_object._client
@@ -157,6 +164,9 @@ class Activity(Model):
     _required_fields = ['verb', 'actor', 'object']
     _media_fields = ['icon']
     _reserved_fields = ['published', 'updated']
+    _response_fields = ['replies', 'likes']
+    _direct_audience_targeting = ['to', 'bto']
+    _indirect_audience_targeting = ['cc', 'bcc']
 
     def __init__(self, object_dict, *args, **kwargs):
         if 'objects_bucket' not in kwargs:
@@ -241,7 +251,6 @@ class Activity(Model):
             }
         }
 
-        #inReplyTo is implicit when it is part of an activity
         self._dict[collection]['totalItems'] += 1
         #insert the newest comment at the top of the list
         self._dict[collection]['items'].insert(0, _sub_dict)
@@ -265,12 +274,13 @@ class Activity(Model):
     def parse_data(self, data, *args, **kwargs):
         #TODO Rename to jsonify_dict
         _parsed_data = super(Activity, self).parse_data(data, *args, **kwargs)
-        if 'replies' in _parsed_data and _parsed_data['replies']['items']:
-            for i, comment in enumerate(_parsed_data['replies']['items']):
-                _parsed_data['replies']['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
-        if 'likes' in _parsed_data and _parsed_data['likes']['items']:
-            for i, comment in enumerate(_parsed_data['likes']['items']):
-                _parsed_data['likes']['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
+        for response_field in self._response_fields:
+            if response_field in _parsed_data:
+                if not _parsed_data[response_field]['items']:
+                    del _parsed_data[response_field]
+                else:
+                    for i, comment in enumerate(_parsed_data[response_field]['items']):
+                        _parsed_data[response_field]['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
 
         return _parsed_data
 
