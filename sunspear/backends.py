@@ -167,7 +167,7 @@ class RiakBackend(object):
         #We might also have to get sub activities for things like replies and likes
         sub_activity_ids = set()
         for activity in activities:
-            for collection in ['replies', 'likes']:
+            for collection in Activity._response_fields:
                 if collection in activity and activity[collection]['items']:
                     for item in activity[collection]['items']:
                         sub_activity_ids.update(_extract_activity_keys(item))
@@ -178,7 +178,7 @@ class RiakBackend(object):
 
             #Hydrate out any subactivities we may have
             for activity in activities:
-                for collection in ['replies', 'likes']:
+                for collection in Activity._response_fields:
                     if collection in activity and activity[collection]['items']:
                         for i, item in enumerate(activity[collection]['items']):
                             activity[collection]['items'][i] = _dehydrate_sub_activity(item, sub_activities_dict)
@@ -223,7 +223,7 @@ class RiakBackend(object):
         object_ids = set()
         for activity in activities:
             object_ids.update(_extract_object_keys(activity))
-            for collection in ['replies', 'likes']:
+            for collection in Activity._response_fields:
                 if collection in activity and activity[collection]['items']:
                     for item in activity[collection]['items']:
                         object_ids.update(_extract_object_keys(item))
@@ -235,7 +235,7 @@ class RiakBackend(object):
         #replace the object ids with the hydrated objects
         for activity in activities:
             activity = _hydrate_object_keys(activity, objects_dict)
-            for collection in ['replies', 'likes']:
+            for collection in Activity._response_fields:
                 if collection in activity and activity[collection]['items']:
                     for i, item in enumerate(activity[collection]['items']):
                         activity[collection]['items'][i] = _hydrate_object_keys(item, objects_dict)
