@@ -54,6 +54,50 @@ class TestRiakBackend(object):
         eq_(self._backend._objects.get(actor_id).get_data(), actor)
         eq_(self._backend._objects.get(object_id).get_data(), obj)
 
+    def test_create_activity_with_targeted_audience(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        object_id = '4353'
+        object_id2 = '5555'
+        object_id3 = '5556'
+        object_id4 = '5557'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._objects.get(object_id2).delete()
+        self._backend._objects.get(object_id3).delete()
+        self._backend._objects.get(object_id4).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+        obj2 = {"objectType": "something", "id": object_id2, "published": published_time}
+        obj3 = {"objectType": "something", "id": object_id3, "published": published_time}
+        obj4 = {"objectType": "something", "id": object_id4, "published": published_time}
+
+        act_obj = self._backend.create_activity({
+            "id": 5,
+            "title": "Stream Item",
+            "verb": "post",
+            "actor": actor,
+            "object": obj,
+            'to': [obj2, obj3],
+            "cc": [obj4]})
+        act_obj_dict = act_obj.get_data()
+
+        eq_(act_obj_dict['actor'], actor_id)
+        eq_(act_obj_dict['object'], object_id)
+
+        actor.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
+        obj.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
+        eq_(self._backend._objects.get(actor_id).get_data(), actor)
+        eq_(self._backend._objects.get(object_id).get_data(), obj)
+
+        eq_(act_obj_dict['to'], [object_id2, object_id3])
+        eq_(act_obj_dict['cc'], [object_id4])
+
     def test_create_activity_maintains_extra_keys(self):
         self._backend._activities.get('5').delete()
 

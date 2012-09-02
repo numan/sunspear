@@ -15,8 +15,8 @@ class Model(object):
     _object_fields = ['actor', 'generator', 'object', 'provider', 'target', 'author']
     _datetime_fields = ['published', 'updated']
     _response_fields = []
-    _direct_audience_targeting = []
-    _indirect_audience_targeting = []
+    _direct_audience_targeting_fields = []
+    _indirect_audience_targeting_fields = []
 
     def __init__(self, object_dict, bucket=None, riak_object=None, *args, **kwargs):
         self._riak_object = riak_object
@@ -32,10 +32,10 @@ class Model(object):
                 _dict[key] = MediaLink(value)
             elif key in self._object_fields and key not in self._response_fields and isinstance(value, dict):
                 _dict[key] = Object(value)
-            elif key in self._direct_audience_targeting:
-                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in object_dict[key]]
-            elif key in self._indirect_audience_targeting:
-                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in object_dict[key]]
+            elif key in self._direct_audience_targeting_fields:
+                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in value]
+            elif key in self._indirect_audience_targeting_fields:
+                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in value]
             else:
                 _dict[key] = value
         return _dict
@@ -45,7 +45,7 @@ class Model(object):
             if not self._dict.get(field, None):
                 raise SunspearValidationException("Required field missing: %s" % field)
 
-        for field in self._reserved_fields + self._direct_audience_targeting + self._indirect_audience_targeting:
+        for field in self._reserved_fields:
             if (self._riak_object is None or \
                 not self._riak_object.exists()) and self._dict.get(field, None) is not None:
                 raise SunspearValidationException("Reserved field name used: %s" % field)
@@ -58,16 +58,38 @@ class Model(object):
             if self._dict.get(field, None) and isinstance(self._dict.get(field, None), Model):
                 self._dict.get(field).validate()
 
+        for field in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields:
+            if self._dict.get(field, None):
+                for sub_obj in self._dict.get(field):
+                    if sub_obj and isinstance(sub_obj, Model):
+                        sub_obj.validate()
+
     def parse_data(self, data, *args, **kwargs):
         #TODO Rename to jsonify_dict
         _parsed_data = data.copy()
 
+        #parse datetime fields
         for d in self._datetime_fields:
-            if d in _parsed_data.keys() and _parsed_data[d]:
+            if d in _parsed_data and _parsed_data[d]:
                 _parsed_data[d] = self._parse_date(_parsed_data[d], utc=True, use_system_timezone=False)
+
+        #parse object fields
         for c in self._object_fields:
-            if c in _parsed_data.keys() and _parsed_data[c] and isinstance(_parsed_data[c], Model):
+            if c in _parsed_data and _parsed_data[c] and isinstance(_parsed_data[c], Model):
                 _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
+
+        #parse direct and indirect audience targeting
+        for c in self._indirect_audience_targeting_fields + self._direct_audience_targeting_fields:
+            if c in _parsed_data and _parsed_data[c]:
+                _parsed_data[c] = [obj.parse_data(obj.get_dict()) if isinstance(obj, Model) else obj\
+                    for obj in _parsed_data[c]]
+
+        #parse media fields
+        for c in self._media_fields:
+            if c in _parsed_data and _parsed_data[c] and isinstance(_parsed_data[c], Model):
+                _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
+
+        #parse anything that is a dictionary for things like datetime fields that are datetime objects
         for k, v in _parsed_data.items():
             if isinstance(v, dict) and k not in self._response_fields:
                 _parsed_data[k] = self.parse_data(v)
@@ -165,8 +187,8 @@ class Activity(Model):
     _media_fields = ['icon']
     _reserved_fields = ['published', 'updated']
     _response_fields = ['replies', 'likes']
-    _direct_audience_targeting = ['to', 'bto']
-    _indirect_audience_targeting = ['cc', 'bcc']
+    _direct_audience_targeting_fields = ['to', 'bto']
+    _indirect_audience_targeting_fields = ['cc', 'bcc']
 
     def __init__(self, object_dict, *args, **kwargs):
         if 'objects_bucket' not in kwargs:
@@ -197,6 +219,18 @@ class Activity(Model):
                     raise
                 self._dict[key] = value.get_dict()["id"]
                 objs_created.append(value)
+            if key in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields\
+                and value:
+                for i, target_obj in enumerate(value):
+                    if isinstance(target_obj, Object):
+                        target_obj.set_bucket(self._objects_bucket)
+                        try:
+                            target_obj.save()
+                        except SunspearValidationException:
+                            [obj_created.get_riak_object().delete() for obj_created in objs_created]
+                            raise
+                        self._dict[key][i] = target_obj.get_dict()["id"]
+                        objs_created.append(value)
 
         super(Activity, self).save(*args, **kwargs)
 

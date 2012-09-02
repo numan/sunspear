@@ -15,12 +15,79 @@ class TestActivityModel(object):
         act = Activity({"id": 5, "verb": "post", \
             "actor": {"objectType": "actor", "id": 1232, "published": "today"}, \
             "target": {"objectType": "target", "id": 4325, "published": "today"}, \
-            "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock())
+            "object": {"objectType": "something", "id": 4353, "published": "today"},
+            "icon": {'url': "http://example.org/something"}}, objects_bucket=MagicMock())
 
         act_dict = act._dict
         ok_(isinstance(act_dict['actor'], Object))
         ok_(isinstance(act_dict['target'], Object))
         ok_(isinstance(act_dict['object'], Object))
+
+        ok_(isinstance(act_dict['icon'], MediaLink))
+
+        ok_('replies' in act_dict)
+        ok_('likes' in act_dict)
+
+        eq_(act_dict['id'], str(5))
+
+    def test_initialize_with_audience_targeting(self):
+        act = Activity({
+                'to': [{'objectType': 'user1', 'id': 'user:id:1'}, {'objectType': 'user2', 'id': 'user:id:2'}],
+                'bto': [{'objectType': 'user3', 'id': 'user:id:3'}, {'objectType': 'user4', 'id': 'user:id:4'}, {'objectType': 'user5', 'id': 'user:id:5'}],
+                'cc': [{'objectType': 'user6', 'id': 'user:id:6'}],
+                'bcc': [],
+            }, objects_bucket=MagicMock())
+
+        act_dict = act._dict
+
+        for key in Activity._direct_audience_targeting_fields:
+            for obj in act_dict[key]:
+                ok_(isinstance(obj, Object))
+
+        for key in Activity._indirect_audience_targeting_fields:
+            for obj in act_dict[key]:
+                ok_(isinstance(obj, Object))
+
+        eq_(len(act_dict['to']), 2)
+        eq_(len(act_dict['bto']), 3)
+        eq_(len(act_dict['cc']), 1)
+        eq_(len(act_dict['bcc']), 0)
+
+    def test_parse_data(self):
+
+        act = Activity({"id": 5, "verb": "post", \
+            "actor": {"objectType": "actor", "id": 1232, "published": '2012-07-05T12:00:00Z'}, \
+            "target": {"objectType": "target", "id": 4325, "published": '2012-07-05T12:00:00Z'}, \
+            "object": {"objectType": "something", "id": 4353, "published": '2012-07-05T12:00:00Z'},
+            "icon": {'url': "http://example.org/something"}}, objects_bucket=MagicMock())
+
+        act_dict = act.parse_data(act._dict)
+
+        eq_({
+            'target': {'objectType': 'target', 'id': '4325', 'published': '2012-07-05T12:00:00Z'},
+            'object': {'objectType': 'something', 'id': '4353', 'published': '2012-07-05T12:00:00Z'},
+            'actor': {'objectType': 'actor', 'id': '1232', 'published': '2012-07-05T12:00:00Z'},
+            'verb': 'post',
+            'id': '5',
+            'icon': {'url': 'http://example.org/something'}
+        }, act_dict)
+
+    def test_parse_data_with_audience_targeting(self):
+        act = Activity({
+                'id': '4213',
+                'to': [{'objectType': 'user1', 'id': 'user:id:1', 'published': '2012-07-05T12:00:00Z'}, {'objectType': 'user2', 'id': 'user:id:2', 'published': '2012-07-05T12:00:00Z'}],
+                'bto': [{'objectType': 'user3', 'id': 'user:id:3', 'published': '2012-07-05T12:00:00Z'}, {'objectType': 'user4', 'id': 'user:id:4', 'published': '2012-07-05T12:00:00Z'}, {'objectType': 'user5', 'id': 'user:id:5', 'published': '2012-07-05T12:00:00Z'}],
+                'cc': [{'objectType': 'user6', 'id': 'user:id:6', 'published': '2012-07-05T12:00:00Z'}],
+                'bcc': [],
+            }, objects_bucket=MagicMock())
+
+        act_dict = act.parse_data(act._dict)
+        eq_({
+            'cc': [{'published': '2012-07-05T12:00:00Z', 'id': 'user:id:6', 'objectType': 'user6'}],
+            'bcc': [],
+            'to': [{'published': '2012-07-05T12:00:00Z', 'id': 'user:id:1', 'objectType': 'user1'}, {'published': '2012-07-05T12:00:00Z', 'id': 'user:id:2', 'objectType': 'user2'}],
+            'bto': [{'published': '2012-07-05T12:00:00Z', 'id': 'user:id:3', 'objectType': 'user3'}, {'published': '2012-07-05T12:00:00Z', 'id': 'user:id:4', 'objectType': 'user4'}, {'published': '2012-07-05T12:00:00Z', 'id': 'user:id:5', 'objectType': 'user5'}], 'id': '4213'
+        }, act_dict)
 
 
 class TestActivity(object):
