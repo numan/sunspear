@@ -45,7 +45,7 @@ JS_MAP = """
     }
 """
 
-JS_FILTER_REDUCE = """
+JS_REDUCE_FILTER_PROP = """
     function(value, arg) {
         return value.filter(function(obj){
             for (var filter in arg['filters']){
@@ -54,6 +54,23 @@ JS_FILTER_REDUCE = """
                         if (obj[filter] == arg['filters'][filter][i]) {
                             return true;
                         }
+                    }
+                }
+            }
+            return false;
+        });
+    }
+"""
+
+JS_REDUCE_FILTER_AUD_TARGETTING = """
+    function(value, arg) {
+        var audience_targeting = ['to', 'bto', 'cc', 'bcc'];
+        return value.filter(function(obj){
+            for (var i in audience_targeting){
+                var targeting_field = audience_targeting[i];
+                if (targeting_field in obj && targeting_field in arg['filters']) {
+                    for(var j in arg['filters'][targeting_field]) {
+                        return obj[targeting_field].indexOf(arg['filters'][targeting_field][j]) != -1;
                     }
                 }
             }
@@ -131,7 +148,7 @@ class RiakBackend(object):
         reply = ReplyActivity(bucket=self._activities, objects_bucket=self._objects)
         reply.delete(key=reply_id)
 
-    def get_activities(self, activity_ids=[], group_by_attributes=[], filters={}):
+    def get_activities(self, activity_ids=[], group_by_attributes=[], filters={}, audience_targeting={}):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
         by.
@@ -144,7 +161,7 @@ class RiakBackend(object):
         if not activity_ids:
             return []
 
-        activities = self._get_many_activities(activity_ids, filters=filters)
+        activities = self._get_many_activities(activity_ids, filters=filters, audience_targeting=audience_targeting)
 
         def _extract_activity_keys(activity):
             keys = []
@@ -193,7 +210,7 @@ class RiakBackend(object):
 
         def _extract_object_keys(activity):
             keys = []
-            for object_key in Model._object_fields:
+            for object_key in Model._object_fields + Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields:
                 if object_key not in activity:
                     continue
                 objects = activity.get(object_key)
@@ -205,13 +222,13 @@ class RiakBackend(object):
                     keys.append(objects)
             return keys
 
-        def _hydrate_object_keys(activity, objects_dict):
-            for object_key in Model._object_fields:
+        def _dehydrate_object_keys(activity, objects_dict):
+            for object_key in Model._object_fields + Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields:
                 if object_key not in activity:
                     continue
                 activity_objects = activity.get(object_key)
                 if isinstance(activity_objects, dict) and activity_objects.get('objectType', None) == 'activity':
-                    activity[object_key] = _hydrate_object_keys(activity_objects, objects_dict)
+                    activity[object_key] = _dehydrate_object_keys(activity_objects, objects_dict)
                 if isinstance(activity_objects, list):
                     activity[object_key] = [objects_dict.get(obj_id, {}) for obj_id in activity_objects]
                 if isinstance(activity_objects, basestring):
@@ -223,6 +240,7 @@ class RiakBackend(object):
         object_ids = set()
         for activity in activities:
             object_ids.update(_extract_object_keys(activity))
+
             for collection in Activity._response_fields:
                 if collection in activity and activity[collection]['items']:
                     for item in activity[collection]['items']:
@@ -234,11 +252,12 @@ class RiakBackend(object):
 
         #replace the object ids with the hydrated objects
         for activity in activities:
-            activity = _hydrate_object_keys(activity, objects_dict)
+            activity = _dehydrate_object_keys(activity, objects_dict)
+
             for collection in Activity._response_fields:
                 if collection in activity and activity[collection]['items']:
                     for i, item in enumerate(activity[collection]['items']):
-                        activity[collection]['items'][i] = _hydrate_object_keys(item, objects_dict)
+                        activity[collection]['items'][i] = _dehydrate_object_keys(item, objects_dict)
 
         return activities
 
@@ -253,7 +272,7 @@ class RiakBackend(object):
 
         return objects.map("Riak.mapValuesJson").run()
 
-    def _get_many_activities(self, activity_ids=[], filters={}):
+    def _get_many_activities(self, activity_ids=[], filters={}, audience_targeting={}):
         activity_bucket_name = self._activities.get_name()
         activities = self._riak_backend
 
@@ -262,8 +281,11 @@ class RiakBackend(object):
 
         result = activities.map(JS_MAP)
 
+        if audience_targeting:
+            result = result.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'filters': audience_targeting}})
+
         if filters:
-            result = result.reduce(JS_FILTER_REDUCE, options={'arg': {'filters': filters}})
+            result = result.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'filters': filters}})
 
         result = result.reduce(JS_REDUCE).run()
 

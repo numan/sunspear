@@ -330,6 +330,72 @@ class TestRiakBackend(object):
         result = self._backend.dehydrate_activities(activities)
         eq_(result, expected)
 
+    def test__get_many_activities_with_audience_targeting(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+        self._backend._activities.get('3').delete()
+        self._backend._activities.get('4').delete()
+        self._backend._activities.get('5').delete()
+
+        self._backend.create_activity({"id": 1, "title": "Stream Item 1", "verb": "type1", "actor": "1234", "object": "5678", 'to': ['100', '101']})
+        self._backend.create_activity({"id": 2, "title": "Stream Item 2", "verb": "type1", "actor": "1234", "object": "5678", 'bto': ['100']})
+        self._backend.create_activity({"id": 3, "title": "Stream Item 3", "verb": "type3", "actor": "1234", "object": "5678", 'cc': ['103', '104'], 'bcc': ['100']})
+        self._backend.create_activity({"id": 4, "title": "Stream Item 4", "verb": "type4", "actor": "1234", "object": "5678", 'bto': ['105']})
+        self._backend.create_activity({"id": 5, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678", 'to': ['100', '101'], 'cc': ['103']})
+
+        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], audience_targeting={'to': ['100', '105'], 'bto': ['105']})
+
+        eq_(len(activities), 3)
+        for i in range(3):
+            ok_(activities[i]['id'] == '1' or activities[i]['id'] == '4' or activities[i]['id'] == '5')
+
+        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], audience_targeting={'cc': ['103'], 'bcc': ['100']})
+
+        eq_(len(activities), 2)
+        for i in range(2):
+            ok_(activities[i]['id'] == '3' or activities[i]['id'] == '5')
+
+    def test_dehydrate_activities_with_audience(self):
+        actor_id = '1234'
+        actor_id2 = '4321'
+        actor_id3 = '9999'
+
+        object_id = '4353'
+        object_id2 = '7654'
+
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor_id2).delete()
+        self._backend._objects.get(actor_id3).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._objects.get(object_id2).delete()
+
+        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        actor2 = {"objectType": "something", "id": actor_id2, "published": '2012-07-05T12:00:00Z'}
+        actor3 = {"objectType": "something", "id": actor_id3, "published": '2012-07-05T12:00:00Z'}
+
+        obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
+        obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
+
+        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
+        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
+
+        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
+        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
+
+        activities = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor_id, actor_id2], "object": object_id, 'to': [actor_id, actor_id2], 'cc': [actor_id3]},
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor_id3, "object": [object_id, object_id2], 'bto': [object_id2], 'bcc': [object_id]},
+        ]
+
+        expected = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor, actor2], "object": obj, 'to': [actor, actor2], 'cc': [actor3]},
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": actor3, "object": [obj, obj2], 'bto': [obj2], 'bcc': [obj]},
+        ]
+
+        result = self._backend.dehydrate_activities(activities)
+        eq_(result, expected)
+
     def test_create_reply(self):
         self._backend._activities.get('5').delete()
 
