@@ -21,9 +21,8 @@ class TestPropertyAggregator(object):
         }, {'a': 4, 'b': 2, 'c': {'d': 6, 'e': 4}
         }, {'a': 5, 'b': 3, 'c': {'d': 6, 'e': 4}
         }]
-        expected = [{'grouped_by_values': [2, 4], 'a': [1, 3, 4], 'b': 2, 'c': {'d': [3, 5, 6], 'e': 4}
-        }, {'a': 5, 'b': 3, 'c': {'d': 6, 'e': 4}
-        }]
+        expected = [{'a': [1, 3, 4], 'c': {'e': 4, 'd': [3, 5, 6]}, 'b': 2, 'grouped_by_attributes': ['b', 'c.e'],
+            'grouped_by_values': [2, 4]}, {'a': 5, 'c': {'e': 4, 'd': 6}, 'b': 3}]
 
         _raw_group_actvities = groupby(data_dict, self._aggregator._group_by_aggregator(group_by_attributes))
         actual = self._aggregator._aggregate_activities(group_by_attributes=group_by_attributes, grouped_activities=_raw_group_actvities)

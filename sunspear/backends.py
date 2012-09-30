@@ -278,17 +278,23 @@ class RiakBackend(object):
         for activity_id in activity_ids:
             activities = activities.add(activity_bucket_name, str(activity_id))
 
-        result = activities.map(JS_MAP)
+        results = activities.map(JS_MAP)
 
         if audience_targeting:
-            result = result.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'filters': audience_targeting}})
+            results = results.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'filters': audience_targeting}})
 
         if filters:
-            result = result.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'filters': filters}})
+            results = results.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'filters': filters}})
 
-        result = result.reduce(JS_REDUCE).run()
+        results = results.reduce(JS_REDUCE).run()
+        results = results if results is not None else []
 
-        return result if result else []
+        #riak does not return the results in any particular order (unless we sort). So,
+        #we have to put the objects returned by riak back in order
+        results_map = dict(map(lambda result: (result['id'], result,), results))
+        reordered_results = [results_map[id] for id in activity_ids if id in results_map]
+
+        return reordered_results
 
     def _get_new_uuid(self):
         return uuid.uuid1().hex

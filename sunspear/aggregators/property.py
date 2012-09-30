@@ -1,12 +1,32 @@
 from sunspear.aggregators.base import BaseAggregator
 from sunspear.lib.dotdict import dotdictify
 
+from itertools import groupby
+
 import copy
 
 
 class PropertyAggregator(BaseAggregator):
     def __init__(self, properties=[], *args, **kwargs):
         self._properties = properties
+
+    def process(self, current_activities, original_activities, aggregators, *args, **kwargs):
+        """
+        Processes the activities performing any mutations necessary.
+        :type current_activities: list
+        :param current_activities: A list of activities, as they stand at the current stage of the aggregation pipeline
+        :type original_activities: list
+        :param original_activities: A list of activities before any processing by the aggregation pipeline
+        :type aggregators: list
+        :param aggregators: A list of aggregators in the current pipeline. The aggregators will be executed (or have been executed) in the order they appear in the list
+        :return: A list of of activities
+        """
+        activities = current_activities
+
+        if self._properties:
+            _raw_group_actvities = groupby(activities, self._group_by_aggregator(group_by_attributes=self._properties))
+            activities = self._aggregate_activities(group_by_attributes=self._properties,  grouped_activities=_raw_group_actvities)
+        return activities
 
     def _listify_attributes(self, group_by_attributes=[], activity={}):
         if not isinstance(activity, dotdictify):
@@ -86,5 +106,6 @@ class PropertyAggregator(BaseAggregator):
 
                 #this might not be useful but meh, we'll see
                 aggregated_activity.update({'grouped_by_values': keys})
+                aggregated_activity.update({'grouped_by_attributes': group_by_attributes})
                 grouped_activities_list.append(aggregated_activity)
         return grouped_activities_list
