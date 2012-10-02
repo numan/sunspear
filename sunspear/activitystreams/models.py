@@ -1,4 +1,5 @@
-from sunspear.exceptions import SunspearValidationException, SunspearInvalidConfigurationError, SunspearNotFoundException
+from sunspear.exceptions import (SunspearValidationException, SunspearInvalidConfigurationError,
+    SunspearNotFoundException, SunspearRiakException)
 from sunspear.lib.rfc3339 import rfc3339
 
 from dateutil.parser import parse
@@ -22,6 +23,9 @@ class Model(object):
         self._riak_object = riak_object
         self._bucket = bucket
         self._dict = self.objectify_dict(object_dict)
+        self._set_defaults()
+
+    def _set_defaults(self):
         if 'id' in self._dict:
             self._dict['id'] = str(self._dict['id'])
 
@@ -141,7 +145,9 @@ class Model(object):
         if not riak_obj.exists():
             raise SunspearNotFoundException("Could not find the object by ``key`` or ``id`")
         self._riak_object = riak_obj
-        self._dict.update(self.objectify_dict(self._riak_object.get_data()))
+        self._dict = self.objectify_dict(self._riak_object.get_data())
+
+        self._set_defaults()
 
     def _get_keys_by_index(self, index_name='clientid_bin', index_value=""):
         client = self._riak_object._client
@@ -197,6 +203,8 @@ class Activity(Model):
 
         super(Activity, self).__init__(object_dict, *args, **kwargs)
 
+    def _set_defaults(self):
+        super(Activity, self)._set_defaults()
         if "id" not in self._dict or not self._dict["id"]:
             self._dict["id"] = self._get_new_uuid()
 
@@ -209,30 +217,56 @@ class Activity(Model):
     def save(self, *args, **kwargs):
         #if things in the object field seem like they are new
         objs_created = []
+        objs_modified = []
         for key, value in self._dict.items():
             if key in self._object_fields and isinstance(value, Object):
+                previous_value = Object(value.get_dict(), bucket=self._objects_bucket)
+                try:
+                    previous_value.get(previous_value.get_dict().get('id'))
+                except:
+                    previous_value = None
+
                 value.set_bucket(self._objects_bucket)
                 try:
-                    value.save()
-                except SunspearValidationException:
-                    [obj_created.get_riak_object().delete() for obj_created in objs_created]
+                    if previous_value:
+                        objs_modified.append(previous_value)
+                        value.save()
+                    else:
+                        value.save()
+                        objs_created.append(value)
+                except Exception:
+                    self._rollback(objs_created, objs_modified)
                     raise
+                    # raise SunspearRiakException('There was an error creating the objects for this activity.')
                 self._dict[key] = value.get_dict()["id"]
-                objs_created.append(value)
             if key in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields\
                 and value:
                 for i, target_obj in enumerate(value):
                     if isinstance(target_obj, Object):
+                        previous_value = Object(target_obj.get_dict(), bucket=self._objects_bucket)
+                        try:
+                            previous_value.get(previous_value.get_dict().get('id'))
+                        except:
+                            previous_value = None
+
                         target_obj.set_bucket(self._objects_bucket)
                         try:
-                            target_obj.save()
-                        except SunspearValidationException:
-                            [obj_created.get_riak_object().delete() for obj_created in objs_created]
+                            if previous_value:
+                                objs_modified.append(previous_value)
+                                target_obj.save()
+                            else:
+                                target_obj.save()
+                                objs_created.append(value)
+                        except Exception:
+                            self._rollback(objs_created, objs_modified)
                             raise
                         self._dict[key][i] = target_obj.get_dict()["id"]
-                        objs_created.append(value)
 
-        super(Activity, self).save(*args, **kwargs)
+        try:
+            super(Activity, self).save(*args, **kwargs)
+        except Exception:
+            self._rollback(objs_created, objs_modified)
+            raise
 
     def riak_validate(self, update=False, *args, **kwargs):
         #TODO Need tests for this
@@ -318,6 +352,10 @@ class Activity(Model):
 
         return _parsed_data
 
+    def _rollback(self, new_objects, modified_objects):
+        [obj_created.get_riak_object().delete() for obj_created in new_objects]
+        [obj_modified.get_riak_object().store() for obj_modified in modified_objects]
+
 
 class ReplyActivity(Activity):
     def __init__(self, object_dict, *args, **kwargs):
@@ -371,11 +409,6 @@ class LikeActivity(ReplyActivity):
 class Object(Model):
     _required_fields = ['objectType', 'id', 'published']
     _media_fields = ['image']
-
-    def riak_validate(self):
-        #TODO Need tests for this
-        if self._bucket.get(self._dict["id"]).exists():
-            raise SunspearValidationException("Object with ID already exists")
 
 
 class MediaLink(Model):

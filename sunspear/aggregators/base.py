@@ -14,4 +14,3 @@ class BaseAggregator(object):
         :return: A list of of activities
         """
         return current_activities
-

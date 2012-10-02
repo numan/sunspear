@@ -133,8 +133,9 @@ class TestRiakBackend(object):
         eq_(self._backend._objects.get(object_id).get_data(), obj)
         eq_(act_obj_dict["other"], other)
 
-    def test_create_activity_with_actor_already_exists(self):
+    def test_create_activity_with_actor_already_exists_overrides_object(self):
         self._backend._activities.get('5').delete()
+        self._backend._activities.get('6').delete()
 
         actor_id = '1234'
         object_id = '4353'
@@ -148,15 +149,20 @@ class TestRiakBackend(object):
         obj = {"objectType": "something", "id": object_id, "published": published_time}
 
         self._backend._objects.new(key=actor["id"]).set_data(actor).store()
-        try:
-            self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
-            ok_(False)
-        except SunspearValidationException:
-            ok_(True)
 
-        ok_(not self._backend._objects.get(obj["id"]).exists())
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+        ok_(self._backend._objects.get(obj["id"]).exists())
+        ok_('content' not in self._backend._objects.get(actor["id"]).get_data())
 
-    def test_create_activity_with_object_already_exists(self):
+        actor['content'] = "Some new content that wasn't there before."
+        self._backend.create_activity({"id": 6, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+        ok_(self._backend._objects.get(obj["id"]).exists())
+        eq_(actor['content'], self._backend._objects.get(actor["id"]).get_data()['content'])
+
+    def test_create_activity_with_exception_rollsback_objects(self):
+        self._backend._activities.get('5').delete()
+        self._backend._activities.get('6').delete()
+
         actor_id = '1234'
         object_id = '4353'
         #make sure these 2 keys don't exist anymore
@@ -165,17 +171,42 @@ class TestRiakBackend(object):
 
         published_time = datetime.datetime.utcnow()
 
+        actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+        ok_(self._backend._objects.get(obj["id"]).exists())
+        ok_('content' not in self._backend._objects.get(actor["id"]).get_data())
+
+        try:
+            actor['content'] = "Some new content that wasn't there before."
+            self._backend.create_activity({"id": 6, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj, 'client': self._riak_client})
+            ok_(False)
+        except Exception:
+            ok_(True)
+            ok_('content' not in self._backend._objects.get(actor["id"]).get_data())
+
+    def test_create_activity_with_object_already_exists_shouldnt_throw_exception(self):
+        actor_id = '1234'
+        object_id = '4353'
+        activity_id = '5'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+        self._backend._activities.get(activity_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
         actor = {"objectType": "something", "id": actor_id, "published": published_time}
         obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
 
         self._backend._objects.new(key=obj["id"]).set_data(obj).store()
-        try:
-            self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
-            ok_(False)
-        except SunspearValidationException:
-            ok_(True)
 
-        ok_(not self._backend._objects.get(actor["id"]).exists())
+        self._backend.create_activity({"id": activity_id, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        ok_(self._backend._objects.get(actor["id"]).exists())
 
     def test__get_many_activities(self):
         self._backend._activities.get('1').delete()

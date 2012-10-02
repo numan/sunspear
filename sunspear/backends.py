@@ -108,8 +108,8 @@ class RiakBackend(object):
 
     def create_object(self, object_dict):
         """
-        Creates an object that can be used as part of an activity. The id of the object **MUST** be unique.
-        If the id of the object is not provided, it will raise a ``SunspearValidationException``.
+        Creates an object that can be used as part of an activity. If you specific and object with an id
+        that already exists, that object is overriden
         """
         obj = Object(object_dict, bucket=self._objects)
         obj.save()
