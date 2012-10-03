@@ -88,14 +88,6 @@ class TestRiakBackend(object):
             "cc": [obj4]})
         act_obj_dict = act_obj.get_data()
 
-        eq_(act_obj_dict['actor'], actor_id)
-        eq_(act_obj_dict['object'], object_id)
-
-        actor.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
-        obj.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
-        eq_(self._backend._objects.get(actor_id).get_data(), actor)
-        eq_(self._backend._objects.get(object_id).get_data(), obj)
-
         eq_(act_obj_dict['to'], [object_id2, object_id3])
         eq_(act_obj_dict['cc'], [object_id4])
 

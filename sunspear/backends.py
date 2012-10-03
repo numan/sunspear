@@ -16,7 +16,7 @@ specific language governing permissions and limitations
 under the License.
 """
 
-from sunspear.activitystreams.models import Object, Activity, Model, ReplyActivity
+from sunspear.activitystreams.models import Object, Activity, Model, ReplyActivity, LikeActivity
 
 
 from riak import RiakPbcTransport
@@ -129,6 +129,12 @@ class RiakBackend(object):
         return activity_obj.get_riak_object()
 
     def create_reply(self, activity_id, actor, reply):
+        """
+        Creates a ``reply`` for an activity.
+
+        :type activity_id: int
+        :param activity_id: The id of the activity we want to create a reply for
+        """
         activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
         activity.get(key=activity_id)
 
@@ -136,6 +142,12 @@ class RiakBackend(object):
         return reply_activity
 
     def create_like(self, activity_id, actor):
+        """
+        Creates a ``like`` for an activity.
+
+        :type activity_id: string
+        :param activity_id: The id of the activity we want to create a reply for
+        """
         activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
         activity.get(key=activity_id)
 
@@ -143,18 +155,40 @@ class RiakBackend(object):
         return like_activity
 
     def delete_reply(self, reply_id):
+        """
+        Deletes a ``reply`` made on an activity. This will also update the corresponding activity.
+
+        :type reply_id: string
+        :param reply_id: the id of the reply activity to delete.
+        """
         reply = ReplyActivity(bucket=self._activities, objects_bucket=self._objects)
         reply.delete(key=reply_id)
+
+    def delete_like(self, like_id):
+        """
+        Deletes a ``like`` made on an activity. This will also update the corresponding activity.
+
+        :type like_id: string
+        :param like_id: the id of the like activity to delete.
+        """
+        like = LikeActivity(bucket=self._activities, objects_bucket=self._objects)
+        like.delete(key=like_id)
 
     def get_activities(self, activity_ids=[], filters={}, audience_targeting={}, aggregation_pipeline=[]):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
         by.
 
+        :type activity_ids: list
         :param activity_ids: The list of activities you want to retrieve
-        :param group_by_attributes: A list of attributes you want to group by. The attributes can be any attribute of
-        the activity. Example: ['verb', 'actor'] will ```roll up``` activities by those 2 attributes. If you have defined
-        custom nested object for an activity, you can roll up by a nested attribute by using the dot notation: ``group.name``
+        :type filters: dict
+        :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
+        Filters do not work for nested dictionaries.
+        :type audience_targeting: dict
+        :param audience_targeting: Filters the list of activities targeted towards a particular audience. The key for the dictionary is one of ``to``, ``cc``, ``bto``, or ``bcc``.
+        The values are an array of object ids
+        :type aggregation_pipeline: array of ``sunspear.aggregators.base.BaseAggregator``
+        :param aggregation_pipeline: modify the final list of activities. Exact results depends on the implementation of the aggregation pipeline
         """
         if not activity_ids:
             return []
@@ -206,7 +240,9 @@ class RiakBackend(object):
         return activities
 
     def dehydrate_activities(self, activities):
-
+        """
+        Takes a raw list of activities returned from riak and replace keys with contain ids for riak objects with actual riak object
+        """
         def _extract_object_keys(activity):
             keys = []
             for object_key in Model._object_fields + Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields:
@@ -261,6 +297,9 @@ class RiakBackend(object):
         return activities
 
     def _get_many_objects(self, object_ids):
+        """
+        Given a list of object ids, returns a list of objects
+        """
         if not object_ids:
             return object_ids
         object_bucket_name = self._objects.get_name()
@@ -272,6 +311,17 @@ class RiakBackend(object):
         return objects.map("Riak.mapValuesJson").run()
 
     def _get_many_activities(self, activity_ids=[], filters={}, audience_targeting={}):
+        """
+        Given a list of activity ids, returns a list of activities from riak.
+
+        :type activity_ids: list
+        :param activity_ids: The list of activities you want to retrieve
+        :type filters: dict
+        :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
+        Filters do not work for nested dictionaries.
+        :type audience_targeting: dict
+        :param audience_targeting: Filters the list of activities targeted towards a particular audience. The key for the dictionary is one of ``to``, ``cc``, ``bto``, or ``bcc``.
+        """
         activity_bucket_name = self._activities.get_name()
         activities = self._riak_backend
 
