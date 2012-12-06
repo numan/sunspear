@@ -16,5 +16,5 @@ TODO
 
 Contact
 -------
-`Follow me on twitter <http://twitter.com/numan856>`_
+* `Follow me on twitter for updates <http://twitter.com/numan856>`_
 
