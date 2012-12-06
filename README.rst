@@ -3,9 +3,7 @@ Sunspear
 
 Overview
 --------
-Sunspear is an attempted implementation of the `JSON Activity Stream 1.0 <http://activitystrea.ms/specs/json/1.0/>`_.
-
-It is written in python and backed by `riak <http://basho.com>`_.
+Sunspear is an attempted implementation of the `JSON Activity Stream 1.0 <http://activitystrea.ms/specs/json/1.0/>`_ specification. It is written in python and backed by `riak <http://basho.com>`_.
 
 
 
