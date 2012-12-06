@@ -112,9 +112,9 @@ class RiakBackend(object):
         that already exists, that object is overriden
         """
         obj = Object(object_dict, bucket=self._objects)
-        obj.save()
+        riak_object = obj.save()
 
-        return obj.get_riak_object()
+        return riak_object.get_data()
 
     def create_activity(self, actstream_dict):
         """
@@ -124,9 +124,9 @@ class RiakBackend(object):
         retriving the activity.
         """
         activity_obj = Activity(actstream_dict, bucket=self._activities, objects_bucket=self._objects)
-        activity_obj.save()
+        riak_object = activity_obj.save()
 
-        return activity_obj.get_riak_object()
+        return self.dehydrate_activities([riak_object.get_data()])[0]
 
     def create_reply(self, activity_id, actor, reply):
         """
@@ -308,7 +308,8 @@ class RiakBackend(object):
         for object_id in object_ids:
             objects = objects.add(object_bucket_name, str(object_id))
 
-        return objects.map("Riak.mapValuesJson").run()
+        results = objects.map("Riak.mapValuesJson").reduce(JS_REDUCE_OBJS).run()
+        return results or []
 
     def _get_many_activities(self, activity_ids=[], filters={}, audience_targeting={}):
         """
@@ -337,7 +338,7 @@ class RiakBackend(object):
             results = results.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'filters': filters}})
 
         results = results.reduce(JS_REDUCE).run()
-        results = results if results is not None else []
+        results = results or []
 
         #riak does not return the results in any particular order (unless we sort). So,
         #we have to put the objects returned by riak back in order

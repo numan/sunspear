@@ -107,7 +107,7 @@ class Model(object):
 
     def save(self, *args, **kwargs):
         if self._bucket is None:
-            raise SunspearInvalidConfigurationError("You must pass a riak object to save() or in the constructor.")
+            raise SunspearInvalidConfigurationError("You must pass a riak bucket in the constructor.")
 
         if self._riak_object is None:
             _riak_object = self._bucket.new(key=self._dict["id"])
@@ -215,6 +215,7 @@ class Activity(Model):
             self._dict['likes'] = {'totalItems': 0, 'items': []}
 
     def save(self, *args, **kwargs):
+        return_val = None
         #if things in the object field seem like they are new
         objs_created = []
         objs_modified = []
@@ -263,10 +264,12 @@ class Activity(Model):
                         self._dict[key][i] = target_obj.get_dict()["id"]
 
         try:
-            super(Activity, self).save(*args, **kwargs)
+            return_val = super(Activity, self).save(*args, **kwargs)
         except Exception:
             self._rollback(objs_created, objs_modified)
             raise
+
+        return return_val
 
     def riak_validate(self, update=False, *args, **kwargs):
         #TODO Need tests for this

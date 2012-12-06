@@ -20,15 +20,11 @@ class TestRiakBackend(object):
 
     def test_create_object(self):
         self._backend._objects.get('1234').delete()
+        obj = {"objectType": "Hello", "id": "1234", "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
 
-        actstream_obj = self._backend.create_object({"objectType": "Hello", "id": 1234, "published": datetime.datetime.utcnow()})
+        actstream_obj = self._backend.create_object(obj)
 
-        ok_(actstream_obj.get_key())
-        saved_obj = self._backend._objects.get(actstream_obj.get_key())
-        saved_obj_dict = saved_obj.get_data()
-
-        eq_(actstream_obj.get_data(), saved_obj_dict)
-        actstream_obj.delete()
+        eq_(actstream_obj, obj)
 
     def test_create_activity(self):
         self._backend._activities.get('5').delete()
@@ -39,21 +35,16 @@ class TestRiakBackend(object):
         self._backend._objects.get(actor_id).delete()
         self._backend._objects.get(object_id).delete()
 
-        published_time = datetime.datetime.utcnow()
+        published_time = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
 
         actor = {"objectType": "something", "id": actor_id, "published": published_time}
         obj = {"objectType": "something", "id": object_id, "published": published_time}
 
         act_obj = self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
-        act_obj_dict = act_obj.get_data()
+        act_obj_dict = act_obj
 
-        eq_(act_obj_dict['actor'], actor_id)
-        eq_(act_obj_dict['object'], object_id)
-
-        actor.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
-        obj.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
-        eq_(self._backend._objects.get(actor_id).get_data(), actor)
-        eq_(self._backend._objects.get(object_id).get_data(), obj)
+        eq_(act_obj_dict['actor'], actor)
+        eq_(act_obj_dict['object'], obj)
 
     def test_create_activity_with_targeted_audience(self):
         self._backend._activities.get('5').delete()
@@ -70,7 +61,7 @@ class TestRiakBackend(object):
         self._backend._objects.get(object_id3).delete()
         self._backend._objects.get(object_id4).delete()
 
-        published_time = datetime.datetime.utcnow()
+        published_time = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
 
         actor = {"objectType": "something", "id": actor_id, "published": published_time}
         obj = {"objectType": "something", "id": object_id, "published": published_time}
@@ -78,7 +69,7 @@ class TestRiakBackend(object):
         obj3 = {"objectType": "something", "id": object_id3, "published": published_time}
         obj4 = {"objectType": "something", "id": object_id4, "published": published_time}
 
-        act_obj = self._backend.create_activity({
+        act_obj_dict = self._backend.create_activity({
             "id": 5,
             "title": "Stream Item",
             "verb": "post",
@@ -86,10 +77,9 @@ class TestRiakBackend(object):
             "object": obj,
             'to': [obj2, obj3],
             "cc": [obj4]})
-        act_obj_dict = act_obj.get_data()
 
-        eq_(act_obj_dict['to'], [object_id2, object_id3])
-        eq_(act_obj_dict['cc'], [object_id4])
+        eq_(act_obj_dict['to'], [obj2, obj3])
+        eq_(act_obj_dict['cc'], [obj4])
 
     def test_create_activity_maintains_extra_keys(self):
         self._backend._activities.get('5').delete()
@@ -100,7 +90,7 @@ class TestRiakBackend(object):
         self._backend._objects.get(actor_id).delete()
         self._backend._objects.get(object_id).delete()
 
-        published_time = datetime.datetime.utcnow()
+        published_time = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
 
         actor = {"bar": "baz", "objectType": "something", "id": actor_id, "published": published_time}
         obj = {"foo": "bar", "objectType": "something", "id": object_id, "published": published_time}
@@ -114,15 +104,10 @@ class TestRiakBackend(object):
             "object": obj,
             "other": other
         })
-        act_obj_dict = act_obj.get_data()
+        act_obj_dict = act_obj
 
-        eq_(act_obj_dict['actor'], actor_id)
-        eq_(act_obj_dict['object'], object_id)
-
-        actor.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
-        obj.update({'published': published_time.strftime('%Y-%m-%dT%H:%M:%S') + "Z"})
-        eq_(self._backend._objects.get(actor_id).get_data(), actor)
-        eq_(self._backend._objects.get(object_id).get_data(), obj)
+        eq_(act_obj_dict['actor'], actor)
+        eq_(act_obj_dict['object'], obj)
         eq_(act_obj_dict["other"], other)
 
     def test_create_activity_with_actor_already_exists_overrides_object(self):
