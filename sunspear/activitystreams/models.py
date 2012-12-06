@@ -22,12 +22,18 @@ class Model(object):
     def __init__(self, object_dict, bucket=None, riak_object=None, *args, **kwargs):
         self._riak_object = riak_object
         self._bucket = bucket
-        self._dict = self.objectify_dict(object_dict)
-        self._set_defaults()
+        self._dict = self._set_defaults(self.objectify_dict(object_dict))
 
-    def _set_defaults(self):
-        if 'id' in self._dict:
-            self._dict['id'] = str(self._dict['id'])
+    def _set_defaults(self, model_dict):
+        """
+        Stringifies the id even if it is a integer value
+
+        :type model_dict: dict
+        :param model_dict: The dictionary describing the model
+        """
+        if 'id' in model_dict:
+            model_dict['id'] = str(model_dict['id'])
+        return model_dict
 
     def objectify_dict(self, object_dict):
         _dict = {}
@@ -101,7 +107,12 @@ class Model(object):
         return _parsed_data
 
     def set_indexes(self, riak_object):
-        #TODO: Need tests for this
+        """
+        Sets the default riak 2Is.
+
+        :type riak_object: RiakObject
+        :param riak_object: a RiakObject representing the model of  the class
+        """
         riak_object.add_index("timestamp_int", self._get_timestamp())
         return riak_object
 
@@ -145,9 +156,7 @@ class Model(object):
         if not riak_obj.exists():
             raise SunspearNotFoundException("Could not find the object by ``key`` or ``id`")
         self._riak_object = riak_obj
-        self._dict = self.objectify_dict(self._riak_object.get_data())
-
-        self._set_defaults()
+        self._dict = self._set_defaults(self.objectify_dict(self._riak_object.get_data()))
 
     def _get_keys_by_index(self, index_name='clientid_bin', index_value=""):
         client = self._riak_object._client
@@ -203,16 +212,18 @@ class Activity(Model):
 
         super(Activity, self).__init__(object_dict, *args, **kwargs)
 
-    def _set_defaults(self):
-        super(Activity, self)._set_defaults()
-        if "id" not in self._dict or not self._dict["id"]:
-            self._dict["id"] = self._get_new_uuid()
+    def _set_defaults(self, model_dict):
+        model_dict = super(Activity, self)._set_defaults(model_dict)
+        if "id" not in model_dict or not model_dict["id"]:
+            model_dict["id"] = self._get_new_uuid()
 
-        if 'replies' not in self._dict:
-            self._dict['replies'] = {'totalItems': 0, 'items': []}
+        if 'replies' not in model_dict:
+            model_dict['replies'] = {'totalItems': 0, 'items': []}
 
-        if 'likes' not in self._dict:
-            self._dict['likes'] = {'totalItems': 0, 'items': []}
+        if 'likes' not in model_dict:
+            model_dict['likes'] = {'totalItems': 0, 'items': []}
+
+        return model_dict
 
     def save(self, *args, **kwargs):
         return_val = None
@@ -331,9 +342,18 @@ class Activity(Model):
         return _activity._riak_object, self._riak_object
 
     def set_indexes(self, riak_object):
+        """
+        Store indexes specific to an ``Activity``. Stores the following indexes:
+        1. ``verb`` of the ``Activity``
+        2. ``actor`` of the ``Activity``
+        3. ``object`` of the ``Activity``
+        4. if target is defined, verb for the ``target`` of the Activity
+
+        :type riak_object: RiakObject
+        :param riak_object: a RiakObject representing the model of  the class
+        """
         super(Activity, self).set_indexes(riak_object)
-        #TODO: Need tests for this
-        #store a secondary index so we can search by it to check for duplicates
+
         riak_object.add_index("verb_bin", str(self._dict['verb']))
         riak_object.add_index("actor_bin", str(self._dict['actor']))
         riak_object.add_index("object_bin", str(self._dict['object']))
@@ -370,6 +390,13 @@ class ReplyActivity(Activity):
         self._activity_id = kwargs.get('activity_id', None)
 
     def set_indexes(self, riak_object):
+        """
+        Store indexes specific to a sub-activity. Stores the following indexes:
+        1. id of the the parent ``Activity`` of this sub-activity
+
+        :type riak_object: RiakObject
+        :param riak_object: a RiakObject representing the model of  the class
+        """
         super(ReplyActivity, self).set_indexes(riak_object)
         #TODO: Need tests for this
         riak_object.add_index("inreplyto_bin", str(self._activity_id))

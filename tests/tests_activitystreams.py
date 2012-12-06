@@ -1,10 +1,9 @@
 from __future__ import absolute_import
 
 from nose.tools import ok_, eq_, raises, set_trace
+from mock import MagicMock, call, ANY
 
-from mock import MagicMock
-
-from sunspear.activitystreams.models import Activity, MediaLink, Object
+from sunspear.activitystreams.models import Activity, MediaLink, Object, Model, ReplyActivity, LikeActivity
 from sunspear.exceptions import SunspearValidationException
 
 import datetime
@@ -174,6 +173,22 @@ class TestActivity(object):
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: bcc")
 
+    def test_set_indexes(self):
+        obj = Activity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
+        riak_obj_mock = MagicMock()
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('timestamp_int', ANY),
+            call.add_index('verb_bin', ANY),
+            call.add_index('actor_bin', ANY),
+            call.add_index('object_bin', ANY),
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 4)
+
 
 class TestMediaLink(object):
     def test_required_fields_all_there(self):
@@ -202,11 +217,10 @@ class TestObject(object):
 
 
 class TestModelMethods(object):
-
     def test_parse_data_published_date(self):
         d = datetime.datetime.now()
 
-        obj = Object({"displayName": "something", "id": 1232, \
+        obj = Model({"displayName": "something", "id": 1232, \
             "published": d, "updated": d})
         parsed_dict = obj.parse_data(obj.get_dict())
         eq_(parsed_dict["published"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
@@ -214,7 +228,71 @@ class TestModelMethods(object):
     def test_parse_data_updated_date(self):
         d = datetime.datetime.now()
 
-        obj = Object({"displayName": "something", "id": 1232, \
+        obj = Model({"displayName": "something", "id": 1232, \
             "published": d, "updated": d})
         parsed_dict = obj.parse_data(obj.get_dict())
         eq_(parsed_dict["updated"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
+
+    def test__set_defaults(self):
+        obj = Model({})
+        obj_dict = obj._set_defaults({'id': 12})
+
+        ok_(isinstance(obj_dict.get('id'), basestring))
+
+    def test__set_defaults_no_id_does_not_fail(self):
+        obj = Model({})
+        data = {'foo': 'bar', 'baz': 'bee'}
+        obj_dict = obj._set_defaults(data)
+
+        eq_(obj_dict, data)
+
+    def test_set_indexes(self):
+        obj = Model({})
+        riak_obj_mock = MagicMock()
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('timestamp_int', ANY)
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 1)
+
+
+class TestReplyActivityMethods(object):
+    def test_set_indexes(self):
+        obj = ReplyActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
+        riak_obj_mock = MagicMock()
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('timestamp_int', ANY),
+            call.add_index('inreplyto_bin', ANY),
+            call.add_index('verb_bin', ANY),
+            call.add_index('actor_bin', ANY),
+            call.add_index('object_bin', ANY),
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 5)
+
+
+class TestLikeActivityMethods(object):
+    def test_set_indexes(self):
+        obj = LikeActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
+        riak_obj_mock = MagicMock()
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('timestamp_int', ANY),
+            call.add_index('inreplyto_bin', ANY),
+            call.add_index('verb_bin', ANY),
+            call.add_index('actor_bin', ANY),
+            call.add_index('object_bin', ANY),
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 5)
