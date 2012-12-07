@@ -160,129 +160,129 @@ def rfc3339(date, utc=False, use_system_timezone=True):
         return _string(date, _timezone(utc_offset))
 
 
-class LocalTimeTestCase(unittest.TestCase):
-    '''
-    Test the use of the timezone saved locally. Since it is hard to test using
-    doctest.
-    '''
+# class LocalTimeTestCase(unittest.TestCase):
+#     '''
+#     Test the use of the timezone saved locally. Since it is hard to test using
+#     doctest.
+#     '''
 
-    def setUp(self):
-        local_utcoffset = _utc_offset(datetime.datetime.now(), True)
-        self.local_utcoffset = datetime.timedelta(seconds=local_utcoffset)
-        self.local_timezone = _timezone(local_utcoffset)
+#     def setUp(self):
+#         local_utcoffset = _utc_offset(datetime.datetime.now(), True)
+#         self.local_utcoffset = datetime.timedelta(seconds=local_utcoffset)
+#         self.local_timezone = _timezone(local_utcoffset)
 
-    def test_datetime(self):
-        d = datetime.datetime.now()
-        self.assertEqual(rfc3339(d),
-                         d.strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
+#     def test_datetime(self):
+#         d = datetime.datetime.now()
+#         self.assertEqual(rfc3339(d),
+#                          d.strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
 
-    def test_datetime_timezone(self):
+#     def test_datetime_timezone(self):
 
-        class FixedNoDst(datetime.tzinfo):
-            'A timezone info with fixed offset, not DST'
+#         class FixedNoDst(datetime.tzinfo):
+#             'A timezone info with fixed offset, not DST'
 
-            def utcoffset(self, dt):
-                return datetime.timedelta(hours=2, minutes=30)
+#             def utcoffset(self, dt):
+#                 return datetime.timedelta(hours=2, minutes=30)
 
-            def dst(self, dt):
-                return None
+#             def dst(self, dt):
+#                 return None
 
-        fixed_no_dst = FixedNoDst()
+#         fixed_no_dst = FixedNoDst()
 
-        class Fixed(FixedNoDst):
-            'A timezone info with DST'
+#         class Fixed(FixedNoDst):
+#             'A timezone info with DST'
 
-            def dst(self, dt):
-                return datetime.timedelta(hours=3, minutes=15)
+#             def dst(self, dt):
+#                 return datetime.timedelta(hours=3, minutes=15)
 
-        fixed = Fixed()
+#         fixed = Fixed()
 
-        d = datetime.datetime.now().replace(tzinfo=fixed_no_dst)
-        timezone = _timezone(_timedelta_to_seconds(fixed_no_dst.\
-                                                   utcoffset(None)))
-        self.assertEqual(rfc3339(d),
-                         d.strftime('%Y-%m-%dT%H:%M:%S') + timezone)
+#         d = datetime.datetime.now().replace(tzinfo=fixed_no_dst)
+#         timezone = _timezone(_timedelta_to_seconds(fixed_no_dst.\
+#                                                    utcoffset(None)))
+#         self.assertEqual(rfc3339(d),
+#                          d.strftime('%Y-%m-%dT%H:%M:%S') + timezone)
 
-        d = datetime.datetime.now().replace(tzinfo=fixed)
-        timezone = _timezone(_timedelta_to_seconds(fixed.dst(None)))
-        self.assertEqual(rfc3339(d),
-                         d.strftime('%Y-%m-%dT%H:%M:%S') + timezone)
+#         d = datetime.datetime.now().replace(tzinfo=fixed)
+#         timezone = _timezone(_timedelta_to_seconds(fixed.dst(None)))
+#         self.assertEqual(rfc3339(d),
+#                          d.strftime('%Y-%m-%dT%H:%M:%S') + timezone)
 
-    def test_datetime_utc(self):
-        d = datetime.datetime.now()
-        d_utc = d + self.local_utcoffset
-        self.assertEqual(rfc3339(d, utc=True),
-                         d_utc.strftime('%Y-%m-%dT%H:%M:%SZ'))
+#     def test_datetime_utc(self):
+#         d = datetime.datetime.now()
+#         d_utc = d + self.local_utcoffset
+#         self.assertEqual(rfc3339(d, utc=True),
+#                          d_utc.strftime('%Y-%m-%dT%H:%M:%SZ'))
 
-    def test_date(self):
-        d = datetime.date.today()
-        self.assertEqual(rfc3339(d),
-                         d.strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
+#     def test_date(self):
+#         d = datetime.date.today()
+#         self.assertEqual(rfc3339(d),
+#                          d.strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
 
-    def test_date_utc(self):
-        d = datetime.date.today()
-        # Convert `date` to `datetime`, since `date` ignores seconds and hours
-        # in timedeltas:
-        # >>> datetime.date(2008, 9, 7) + datetime.timedelta(hours=23)
-        # datetime.date(2008, 9, 7)
-        d_utc = datetime.datetime(*d.timetuple()[:3]) + self.local_utcoffset
-        self.assertEqual(rfc3339(d, utc=True),
-                         d_utc.strftime('%Y-%m-%dT%H:%M:%SZ'))
+#     def test_date_utc(self):
+#         d = datetime.date.today()
+#         # Convert `date` to `datetime`, since `date` ignores seconds and hours
+#         # in timedeltas:
+#         # >>> datetime.date(2008, 9, 7) + datetime.timedelta(hours=23)
+#         # datetime.date(2008, 9, 7)
+#         d_utc = datetime.datetime(*d.timetuple()[:3]) + self.local_utcoffset
+#         self.assertEqual(rfc3339(d, utc=True),
+#                          d_utc.strftime('%Y-%m-%dT%H:%M:%SZ'))
 
-    def test_timestamp(self):
-        d = time.time()
-        self.assertEqual(rfc3339(d),
-                         datetime.datetime.fromtimestamp(d).\
-                         strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
+#     def test_timestamp(self):
+#         d = time.time()
+#         self.assertEqual(rfc3339(d),
+#                          datetime.datetime.fromtimestamp(d).\
+#                          strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
 
-    def test_timestamp_utc(self):
-        d = time.time()
-        d_utc = datetime.datetime.utcfromtimestamp(d) + self.local_utcoffset
-        self.assertEqual(rfc3339(d),
-                         (d_utc.strftime('%Y-%m-%dT%H:%M:%S') +
-                          self.local_timezone))
+#     def test_timestamp_utc(self):
+#         d = time.time()
+#         d_utc = datetime.datetime.utcfromtimestamp(d) + self.local_utcoffset
+#         self.assertEqual(rfc3339(d),
+#                          (d_utc.strftime('%Y-%m-%dT%H:%M:%S') +
+#                           self.local_timezone))
 
-    def test_before_1970(self):
-        d = datetime.date(1885, 01, 04)
-        self.failUnless(rfc3339(d).startswith('1885-01-04T00:00:00'))
-        self.assertEqual(rfc3339(d, utc=True, use_system_timezone=False),
-                         '1885-01-04T00:00:00Z')
+#     def test_before_1970(self):
+#         d = datetime.date(1885, 01, 04)
+#         self.failUnless(rfc3339(d).startswith('1885-01-04T00:00:00'))
+#         self.assertEqual(rfc3339(d, utc=True, use_system_timezone=False),
+#                          '1885-01-04T00:00:00Z')
 
-    def test_1920(self):
-        d = datetime.date(1920, 02, 29)
-        x = rfc3339(d, utc=False, use_system_timezone=True)
-        self.failUnless(x.startswith('1920-02-29T00:00:00'))
+#     def test_1920(self):
+#         d = datetime.date(1920, 02, 29)
+#         x = rfc3339(d, utc=False, use_system_timezone=True)
+#         self.failUnless(x.startswith('1920-02-29T00:00:00'))
 
-    # If these tests start failing it probably means there was a policy change
-    # for the Pacific time zone.
-    # See http://en.wikipedia.org/wiki/Pacific_Time_Zone.
-    if 'PST' in time.tzname:
-        def testPDTChange(self):
-            '''Test Daylight saving change'''
-            # PDT switch happens at 2AM on March 14, 2010
+#     # If these tests start failing it probably means there was a policy change
+#     # for the Pacific time zone.
+#     # See http://en.wikipedia.org/wiki/Pacific_Time_Zone.
+#     if 'PST' in time.tzname:
+#         def testPDTChange(self):
+#             '''Test Daylight saving change'''
+#             # PDT switch happens at 2AM on March 14, 2010
 
-            # 1:59AM PST
-            self.assertEqual(rfc3339(datetime.datetime(2010, 3, 14, 1, 59)),
-                             '2010-03-14T01:59:00-08:00')
-            # 3AM PDT
-            self.assertEqual(rfc3339(datetime.datetime(2010, 3, 14, 3, 0)),
-                             '2010-03-14T03:00:00-07:00')
+#             # 1:59AM PST
+#             self.assertEqual(rfc3339(datetime.datetime(2010, 3, 14, 1, 59)),
+#                              '2010-03-14T01:59:00-08:00')
+#             # 3AM PDT
+#             self.assertEqual(rfc3339(datetime.datetime(2010, 3, 14, 3, 0)),
+#                              '2010-03-14T03:00:00-07:00')
 
-        def testPSTChange(self):
-            '''Test Standard time change'''
-            # PST switch happens at 2AM on November 6, 2010
+#         def testPSTChange(self):
+#             '''Test Standard time change'''
+#             # PST switch happens at 2AM on November 6, 2010
 
-            # 0:59AM PDT
-            self.assertEqual(rfc3339(datetime.datetime(2010, 11, 7, 0, 59)),
-                             '2010-11-07T00:59:00-07:00')
+#             # 0:59AM PDT
+#             self.assertEqual(rfc3339(datetime.datetime(2010, 11, 7, 0, 59)),
+#                              '2010-11-07T00:59:00-07:00')
 
-            # 1:00AM PST
-            # There's no way to have 1:00AM PST without a proper tzinfo
-            self.assertEqual(rfc3339(datetime.datetime(2010, 11, 7, 1, 0)),
-                             '2010-11-07T01:00:00-07:00')
+#             # 1:00AM PST
+#             # There's no way to have 1:00AM PST without a proper tzinfo
+#             self.assertEqual(rfc3339(datetime.datetime(2010, 11, 7, 1, 0)),
+#                              '2010-11-07T01:00:00-07:00')
 
 
-if __name__ == '__main__':  # pragma: no cover
-    import doctest
-    doctest.testmod()
-    unittest.main()
+# if __name__ == '__main__':  # pragma: no cover
+#     import doctest
+#     doctest.testmod()
+#     unittest.main()

@@ -161,8 +161,9 @@ class RiakBackend(object):
         :type reply_id: string
         :param reply_id: the id of the reply activity to delete.
         """
-        reply = ReplyActivity(bucket=self._activities, objects_bucket=self._objects)
-        reply.delete(key=reply_id)
+        reply = ReplyActivity({}, bucket=self._activities, objects_bucket=self._objects)
+        riak_object = reply.delete(key=reply_id)
+        return self.dehydrate_activities([riak_object.get_data()])[0]
 
     def delete_like(self, like_id):
         """
@@ -171,8 +172,9 @@ class RiakBackend(object):
         :type like_id: string
         :param like_id: the id of the like activity to delete.
         """
-        like = LikeActivity(bucket=self._activities, objects_bucket=self._objects)
-        like.delete(key=like_id)
+        like = LikeActivity({}, bucket=self._activities, objects_bucket=self._objects)
+        riak_object = like.delete(key=like_id)
+        return self.dehydrate_activities([riak_object.get_data()])[0]
 
     def get_activities(self, activity_ids=[], filters={}, audience_targeting={}, aggregation_pipeline=[]):
         """

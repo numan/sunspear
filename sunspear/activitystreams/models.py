@@ -150,6 +150,7 @@ class Model(object):
         #TODO need tests for this
         if key is None and id is None:
             raise SunspearValidationException("You must provide either ``key`` or ``id`` to get an object.")
+
         key = str(key)
 
         riak_obj = self._bucket.get(key)
@@ -157,11 +158,6 @@ class Model(object):
             raise SunspearNotFoundException("Could not find the object by ``key`` or ``id`")
         self._riak_object = riak_obj
         self._dict = self._set_defaults(self.objectify_dict(self._riak_object.get_data()))
-
-    def _get_keys_by_index(self, index_name='clientid_bin', index_value=""):
-        client = self._riak_object._client
-        result = client.index(self._riak_object.get_bucket().get_name(), index_name, index_value).run()
-        return result
 
     def get_riak_object(self):
         return self._riak_object
@@ -311,7 +307,7 @@ class Activity(Model):
         reply_dict = {
             'actor': actor,
             'object': reply_obj,
-            'target': self._dict['id'],
+            'target_activity': self._dict['id'],
             'activity_author': self._dict['actor'],
             'verb': verb
         }
@@ -327,6 +323,8 @@ class Activity(Model):
         _sub_dict = {
             'actor': _activity_data['actor'],
             'verb': verb,
+            'id': _activity_data['id'],
+            'published': _activity_data['published'],
             'object': {
                 'objectType': 'activity',
                 'id': _activity_data['id'],
@@ -380,10 +378,13 @@ class Activity(Model):
         [obj_modified.get_riak_object().store() for obj_modified in modified_objects]
 
 
-class ReplyActivity(Activity):
+class SubItemMixin(object):
+    sub_item_verb = "reply"
+    sub_item_key = "replies"
+
     def __init__(self, object_dict, *args, **kwargs):
 
-        super(ReplyActivity, self).__init__(object_dict, *args, **kwargs)
+        super(SubItemMixin, self).__init__(object_dict, *args, **kwargs)
 
         del self._dict['replies']
         del self._dict['likes']
@@ -397,43 +398,36 @@ class ReplyActivity(Activity):
         :type riak_object: RiakObject
         :param riak_object: a RiakObject representing the model of  the class
         """
-        super(ReplyActivity, self).set_indexes(riak_object)
         #TODO: Need tests for this
         riak_object.add_index("inreplyto_bin", str(self._activity_id))
+        riak_object = super(SubItemMixin, self).set_indexes(riak_object)
 
         return riak_object
 
     def delete(self, key=None):
         self.get(key=key)
-        if self._dict['verb'] != 'reply':
-            raise SunspearValidationException("Trying to delete something that is not a reply.")
+        if self._dict['verb'] != self.sub_item_verb:
+            raise SunspearValidationException("Trying to delete something that is not a %s." % self.sub_item_verb)
 
         #clean up the reference from the original activity
-        activity = Activity()
-        activity.get(key=self._dict['object']['inReplyTo']['id'])
-        activity._dict['replies']['totalItems'] -= 1
-        activity._dict['replies']['items'] = filter(lambda x: x["id"] != key, activity._dict['replies']['items'])
+        activity = Activity({}, bucket=self._bucket, objects_bucket=self._objects_bucket)
+        activity.get(key=self._dict['target_activity'])
+        activity._dict[self.sub_item_key]['totalItems'] -= 1
+        activity._dict[self.sub_item_key]['items'] = filter(lambda x: x["id"] != key, activity._dict[self.sub_item_key]['items'])
 
-        self.save()
-        activity.save()
+        self.get_riak_object().delete()
+        activity.save(update=True)
+        return activity.get_riak_object()
 
 
-class LikeActivity(ReplyActivity):
-    def delete(self, key=None):
-        self.get(key=key)
-        if self._dict['verb'] != 'reply':
-            raise SunspearValidationException("Trying to delete something that is not a reply.")
+class ReplyActivity(SubItemMixin, Activity):
+    sub_item_verb = "reply"
+    sub_item_key = "replies"
 
-        #clean up the reference from the original activity
-        activity = Activity()
-        activity.get(key=self._dict['object']['inReplyTo']['id'])
-        activity._dict['likes']['totalItems'] -= 1
-        activity._dict['likes']['items'] = filter(lambda x: x["id"] != key)
 
-        self.save()
-        activity.save()
-
-        return activity._riak_object
+class LikeActivity(SubItemMixin, Activity):
+    sub_item_verb = "like"
+    sub_item_key = "likes"
 
 
 class Object(Model):

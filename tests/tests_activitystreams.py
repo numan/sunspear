@@ -259,6 +259,17 @@ class TestModelMethods(object):
         riak_obj_mock.assert_has_calls(calls, any_order=True)
         eq_(riak_obj_mock.add_index.call_count, 1)
 
+    def test__parse_date(self):
+        obj = Model({})
+        d = datetime.datetime.utcnow()
+        eq_(obj._parse_date(d), d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
+
+        #badly formatted string date
+        ok_(isinstance(obj._parse_date(date="qwerty"), basestring))
+
+        #no date passed
+        ok_(isinstance(obj._parse_date(date=None), basestring))
+
 
 class TestReplyActivityMethods(object):
     def test_set_indexes(self):
