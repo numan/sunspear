@@ -8,5 +8,5 @@ before_install:
 services:
     - riak
 install:
-    - pip install -e . --use-mirrors
+    - pip install -q -e . --use-mirrors
 script: python setup.py nosetests

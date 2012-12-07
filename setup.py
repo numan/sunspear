@@ -5,7 +5,6 @@ from setuptools import setup, find_packages
 tests_require=[
     'nose',
     'mock',
-    'nydus-riak-fixes',
 ]
 
 setup(
@@ -21,12 +20,12 @@ setup(
     packages=find_packages(exclude=['tests']),
     test_suite='nose.collector',
     install_requires=[
+        'nydus==0.10.4',
         'riak==1.5.1',
         'python-dateutil==1.5',
-        'nydus-riak-fixes',
     ],
     dependency_links=[
-        'https://github.com/numan/nydus/tarball/7geese-nydus#egg=nydus-riak-fixes',
+        'https://github.com/numan/nydus/tarball/0.10.4#egg=nydus-0.10.4',
     ],
     tests_require=tests_require,
     extras_require={"test": tests_require, "nosetests": tests_require},
