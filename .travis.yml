@@ -5,5 +5,5 @@ python:
 services:
     - riak
 install:
-    - pip install -q -e . --use-mirrors
+    - pip install -e . --use-mirrors
 script: python setup.py nosetests
