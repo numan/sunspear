@@ -22,8 +22,8 @@ setup(
         'https://github.com/numan/nydus/tarball/7geese-nydus#egg=nydus',
     ],
     tests_require=[
-        'nose>=1.0',
-        'mock==1.0b1'
+        'nose',
+        'mock'
     ],
     classifiers=[
         "Intended Audience :: Developers",
