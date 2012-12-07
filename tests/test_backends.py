@@ -1,21 +1,22 @@
 from __future__ import absolute_import
 
-from nose.tools import ok_, eq_, raises, set_trace
+from nose.tools import ok_, eq_, set_trace
 
 from sunspear.aggregators.property import PropertyAggregator
 from sunspear.backends import RiakBackend
 from sunspear.exceptions import SunspearValidationException, SunspearNotFoundException
 
-from itertools import groupby
-
 import datetime
+
+riak_connection_options = {
+    "host_list": [{'port': 8083}, {'port': 8082}, {'port': 8081}],
+    "defaults": {'host': '127.0.0.1'},
+}
 
 
 class TestRiakBackend(object):
     def setUp(self):
-        self._backend = RiakBackend({
-            'hosts': [{'port': 8094}, {'port': 8093}, {'port': 8092}, {'port': 8091}]
-        })
+        self._backend = RiakBackend(**riak_connection_options)
         self._riak_client = self._backend._get_riak_client()
 
     def test_create_object(self):
@@ -556,9 +557,7 @@ class TestRiakBackend(object):
 
 class TestRiakBackendHydrate(object):
     def setUp(self):
-        self._backend = RiakBackend({
-            'hosts': [{'port': 8094}, {'port': 8093}, {'port': 8092}, {'port': 8091}]
-        })
+        self._backend = RiakBackend(**riak_connection_options)
         self._riak_client = self._backend._get_riak_client()
 
         self.actor_id = '1234'

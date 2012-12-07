@@ -18,6 +18,7 @@ under the License.
 
 from sunspear.activitystreams.models import Object, Activity, Model, ReplyActivity, LikeActivity
 
+from nydus.db import create_cluster
 
 from riak import RiakPbcTransport
 
@@ -96,10 +97,25 @@ JS_REDUCE_OBJS = """
 
 
 class RiakBackend(object):
-    def __init__(self, settings, **kwargs):
+    def __init__(self, host_list=[], defaults={}, **kwargs):
 
-        self._riak_backend = riak.RiakClient(host="127.0.0.1", port=8081,\
-            transport_class=RiakPbcTransport, transport_options={"max_attempts": 2})
+        sunspear_defaults = {
+         'transport_options': {"max_attempts": 4},
+         'transport_class': RiakPbcTransport,
+        }
+
+        sunspear_defaults.update(defaults)
+
+        hosts = {}
+        for i, host_settings in enumerate(host_list):
+            hosts[i] = host_settings
+
+        self._riak_backend = create_cluster({
+            'backend': 'nydus.db.backends.riak.Riak',
+            'defaults': sunspear_defaults,
+            'router': 'nydus.db.routers.keyvalue.PartitionRouter',
+            'hosts': hosts,
+        })
 
         self._streams = self._riak_backend.bucket("streams")
         self._followers = self._riak_backend.bucket("followers")

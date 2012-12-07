@@ -15,7 +15,11 @@ setup(
     test_suite='nose.collector',
     install_requires=[
         'riak==1.5.1',
-        'python-dateutil==1.5'
+        'python-dateutil==1.5',
+        'nydus',
+    ],
+    dependency_links=[
+        'https://github.com/numan/nydus/tarball/7geese-nydus#egg=nydus',
     ],
     tests_require=[
         'nose>=1.0',
