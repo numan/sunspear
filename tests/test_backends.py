@@ -9,7 +9,7 @@ from sunspear.exceptions import SunspearValidationException, SunspearNotFoundExc
 import datetime
 
 riak_connection_options = {
-    "host_list": [{'port': 8083}, {'port': 8082}, {'port': 8081}],
+    "host_list": [{'port': 8081}],
     "defaults": {'host': '127.0.0.1'},
 }
 
