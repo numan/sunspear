@@ -111,7 +111,7 @@ class RiakBackend(object):
             hosts[i] = host_settings
 
         self._riak_backend = create_cluster({
-            'backend': 'nydus.db.backends.riak.Riak',
+            'engine': 'nydus.db.backends.riak.Riak',
             'defaults': sunspear_defaults,
             'router': 'nydus.db.routers.keyvalue.PartitionRouter',
             'hosts': hosts,
