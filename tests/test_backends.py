@@ -406,13 +406,17 @@ class TestRiakBackend(object):
         }
         #make sure these 2 keys don't exist anymore
         self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor2_id).delete()
         self._backend._objects.get(object_id).delete()
         self._backend._objects.get(reply_id).delete()
 
         published_time = datetime.datetime.utcnow()
 
         actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        actor2 = {"objectType": "something", "id": actor2_id, "published": published_time}
         obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        self._backend.create_object(actor2)
 
         #create the activity
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
@@ -438,12 +442,16 @@ class TestRiakBackend(object):
         object_id = '4353'
         #make sure these 2 keys don't exist anymore
         self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor2_id).delete()
         self._backend._objects.get(object_id).delete()
 
         published_time = datetime.datetime.utcnow()
 
         actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        actor2 = {"objectType": "something", "id": actor2_id, "published": published_time}
         obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        self._backend.create_object(actor2)
 
         #create the activity
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
