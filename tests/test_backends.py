@@ -380,19 +380,17 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_obj = self._backend.create_reply(5, actor2_id, "This is a reply.")
-        reply_activity_dict = reply_activity_obj.get_data()
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, "This is a reply.")
 
-        eq_(reply_activity_dict['activity_author'], actor_id)
-        eq_(reply_activity_dict['target_activity'], '5')
-        eq_(reply_activity_dict['actor'], actor2_id)
+        eq_(reply_activity_dict['activityAuthor'], actor_id)
+        eq_(reply_activity_dict['targetActivity'], '5')
+        eq_(reply_activity_dict['actor']['id'], actor2_id)
         eq_(reply_activity_dict['verb'], 'reply')
 
         eq_(activity_obj_dict['replies']['totalItems'], 1)
         eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
         eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
-        eq_(activity_obj_dict['replies']['items'][0]['actor'], actor2_id)
+        eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
 
     def test_create_reply_as_dict(self):
         self._backend._activities.get('5').delete()
@@ -420,19 +418,17 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_obj = self._backend.create_reply(5, actor2_id, reply_dict)
-        reply_activity_dict = reply_activity_obj.get_data()
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, reply_dict)
 
-        eq_(reply_activity_dict['activity_author'], actor_id)
-        eq_(reply_activity_dict['target_activity'], '5')
-        eq_(reply_activity_dict['actor'], actor2_id)
+        eq_(reply_activity_dict['activityAuthor'], actor_id)
+        eq_(reply_activity_dict['targetActivity'], '5')
+        eq_(reply_activity_dict['actor']['id'], actor2_id)
         eq_(reply_activity_dict['verb'], 'reply')
 
         eq_(activity_obj_dict['replies']['totalItems'], 1)
         eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
         eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
-        eq_(activity_obj_dict['replies']['items'][0]['actor'], actor2_id)
+        eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
 
     def test_create_like(self):
         self._backend._activities.get('5').delete()
@@ -453,19 +449,17 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_obj = self._backend.create_like(5, actor2_id)
-        like_activity_dict = like_activity_obj.get_data()
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        like_activity_dict, activity_obj_dict = self._backend.create_like(5, actor2_id)
 
-        eq_(like_activity_dict['activity_author'], actor_id)
-        eq_(like_activity_dict['target_activity'], '5')
-        eq_(like_activity_dict['actor'], actor2_id)
+        eq_(like_activity_dict['activityAuthor'], actor_id)
+        eq_(like_activity_dict['targetActivity'], '5')
+        eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
 
         eq_(activity_obj_dict['likes']['totalItems'], 1)
         eq_(activity_obj_dict['likes']['items'][0]['object']['id'], like_activity_dict['id'])
         eq_(activity_obj_dict['likes']['items'][0]['verb'], 'like')
-        eq_(activity_obj_dict['likes']['items'][0]['actor'], actor2_id)
+        eq_(activity_obj_dict['likes']['items'][0]['actor']['id'], actor2_id)
 
     def test_delete_like(self):
         self._backend._activities.get('5').delete()
@@ -486,19 +480,17 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_obj = self._backend.create_like(5, actor2_id)
-        like_activity_dict = like_activity_obj.get_data()
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        like_activity_dict, activity_obj_dict = self._backend.create_like(5, actor2_id)
 
-        eq_(like_activity_dict['activity_author'], actor_id)
-        eq_(like_activity_dict['target_activity'], '5')
-        eq_(like_activity_dict['actor'], actor2_id)
+        eq_(like_activity_dict['activityAuthor'], actor_id)
+        eq_(like_activity_dict['targetActivity'], '5')
+        eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
 
         eq_(activity_obj_dict['likes']['totalItems'], 1)
         eq_(activity_obj_dict['likes']['items'][0]['object']['id'], like_activity_dict['id'])
         eq_(activity_obj_dict['likes']['items'][0]['verb'], 'like')
-        eq_(activity_obj_dict['likes']['items'][0]['actor'], actor2_id)
+        eq_(activity_obj_dict['likes']['items'][0]['actor']['id'], actor2_id)
 
         #now delete the like and make sure everything is ok:
         returned_updated_activity = self._backend.delete_like(like_activity_dict['id'])
@@ -526,19 +518,17 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_obj = self._backend.create_reply(5, actor2_id, "This is a reply.")
-        reply_activity_dict = reply_activity_obj.get_data()
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, "This is a reply.")
 
-        eq_(reply_activity_dict['activity_author'], actor_id)
-        eq_(reply_activity_dict['target_activity'], '5')
-        eq_(reply_activity_dict['actor'], actor2_id)
+        eq_(reply_activity_dict['activityAuthor'], actor_id)
+        eq_(reply_activity_dict['targetActivity'], '5')
+        eq_(reply_activity_dict['actor']['id'], actor['id'])
         eq_(reply_activity_dict['verb'], 'reply')
 
         eq_(activity_obj_dict['replies']['totalItems'], 1)
         eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
         eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
-        eq_(activity_obj_dict['replies']['items'][0]['actor'], actor2_id)
+        eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
 
         #now delete the reply and make sure everything is ok:
         returned_updated_activity = self._backend.delete_reply(reply_activity_dict['id'])

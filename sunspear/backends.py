@@ -155,7 +155,8 @@ class RiakBackend(object):
         activity.get(key=activity_id)
 
         reply_activity, activity = activity.create_reply(actor, reply)
-        return reply_activity
+        dehydrated_activities = self.dehydrate_activities([reply_activity.get_data(), activity.get_data()])
+        return dehydrated_activities[0], dehydrated_activities[1]
 
     def create_like(self, activity_id, actor):
         """
@@ -168,7 +169,8 @@ class RiakBackend(object):
         activity.get(key=activity_id)
 
         like_activity, activity = activity.create_like(actor)
-        return like_activity
+        dehydrated_activities = self.dehydrate_activities([like_activity.get_data(), activity.get_data()])
+        return dehydrated_activities[0], dehydrated_activities[1]
 
     def delete_reply(self, reply_id):
         """

@@ -307,8 +307,8 @@ class Activity(Model):
         reply_dict = {
             'actor': actor,
             'object': reply_obj,
-            'target_activity': self._dict['id'],
-            'activity_author': self._dict['actor'],
+            'targetActivity': self._dict['id'],
+            'activityAuthor': self._dict['actor'],
             'verb': verb
         }
 
@@ -411,7 +411,7 @@ class SubItemMixin(object):
 
         #clean up the reference from the original activity
         activity = Activity({}, bucket=self._bucket, objects_bucket=self._objects_bucket)
-        activity.get(key=self._dict['target_activity'])
+        activity.get(key=self._dict['targetActivity'])
         activity._dict[self.sub_item_key]['totalItems'] -= 1
         activity._dict[self.sub_item_key]['items'] = filter(lambda x: x["id"] != key, activity._dict[self.sub_item_key]['items'])
 
