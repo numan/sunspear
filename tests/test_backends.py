@@ -9,7 +9,7 @@ from sunspear.exceptions import SunspearValidationException, SunspearNotFoundExc
 import datetime
 
 riak_connection_options = {
-    "host_list": [{'port': 8087}],
+    "host_list": [{'port': 8081}],
     "defaults": {'host': '127.0.0.1'},
 }
 
@@ -26,6 +26,56 @@ class TestRiakBackend(object):
         actstream_obj = self._backend.create_object(obj)
 
         eq_(actstream_obj, obj)
+
+    def test_get_objects(self):
+        obj1_id = '1111'
+        obj2_id = '1112'
+        obj3_id = '1113'
+        obj4_id = '1114'
+
+        self._backend._objects.get(obj1_id).delete()
+        self._backend._objects.get(obj2_id).delete()
+        self._backend._objects.get(obj3_id).delete()
+        self._backend._objects.get(obj4_id).delete()
+
+        obj1 = {"objectType": "Hello", "id": obj1_id, "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
+        obj2 = {"objectType": "Hello", "id": obj2_id, "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
+        obj3 = {"objectType": "Hello", "id": obj3_id, "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
+        obj4 = {"objectType": "Hello", "id": obj4_id, "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
+
+        self._backend.create_object(obj1)
+        self._backend.create_object(obj2)
+        self._backend.create_object(obj3)
+        self._backend.create_object(obj4)
+
+        objects = self._backend.get_objects([obj1_id, obj2_id, obj3_id, obj4_id, 'xxx'])
+
+        eq_(len(objects), 4)
+        for obj in objects:
+            ok_(obj['id'] in [obj1_id, obj2_id, obj3_id, obj4_id])
+
+    #see https://github.com/basho/riak_kv/issues/358
+    # def test_get_objects_no_objects_returns_empty_list(self):
+    #     obj1_id = '1111'
+    #     obj2_id = '1112'
+    #     obj3_id = '1113'
+    #     obj4_id = '1114'
+
+    #     self._backend._objects.get(obj1_id).delete()
+    #     self._backend._objects.get(obj2_id).delete()
+    #     self._backend._objects.get(obj3_id).delete()
+    #     self._backend._objects.get(obj4_id).delete()
+
+    #     objects = self._backend.get_objects([obj1_id, obj2_id, obj3_id, obj4_id])
+
+    #     eq_(len(objects), 0)
+    #     eq_(objects, [])
+
+    def test_get_objects_no_args_returns_empty_list(self):
+        objects = self._backend.get_objects([])
+
+        eq_(len(objects), 0)
+        eq_(objects, [])
 
     def test_create_activity(self):
         self._backend._activities.get('5').delete()

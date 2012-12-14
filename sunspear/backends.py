@@ -194,6 +194,15 @@ class RiakBackend(object):
         riak_object = like.delete(key=like_id)
         return self.dehydrate_activities([riak_object.get_data()])[0]
 
+    def get_objects(self, object_ids=[]):
+        """
+        Gets a list of objects.
+
+        :type object_ids: list
+        :param object_ids: a list of objects
+        """
+        return self._get_many_objects(object_ids)
+
     def get_activities(self, activity_ids=[], filters={}, audience_targeting={}, aggregation_pipeline=[]):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
