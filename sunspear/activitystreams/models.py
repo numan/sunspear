@@ -410,7 +410,7 @@ class SubItemMixin(object):
 
         #clean up the reference from the original activity
         activity = Activity({}, bucket=self._bucket, objects_bucket=self._objects_bucket)
-        activity.get(key=self._dict['targetActivity'])
+        activity.get(key=self.get_riak_object().get_indexes('inreplyto_bin')[0])
         activity._dict[self.sub_item_key]['totalItems'] -= 1
         activity._dict[self.sub_item_key]['items'] = filter(lambda x: x["id"] != key, activity._dict[self.sub_item_key]['items'])
 

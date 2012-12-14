@@ -432,7 +432,6 @@ class TestRiakBackend(object):
         #now create a reply for the activity
         reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, "This is a reply.")
 
-        eq_(reply_activity_dict['targetActivity'], '5')
         eq_(reply_activity_dict['actor']['id'], actor2_id)
         eq_(reply_activity_dict['verb'], 'reply')
 
@@ -473,7 +472,6 @@ class TestRiakBackend(object):
         #now create a reply for the activity
         reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, reply_dict)
 
-        eq_(reply_activity_dict['targetActivity'], '5')
         eq_(reply_activity_dict['actor']['id'], actor2_id)
         eq_(reply_activity_dict['verb'], 'reply')
 
@@ -507,7 +505,6 @@ class TestRiakBackend(object):
         #now create a reply for the activity
         like_activity_dict, activity_obj_dict = self._backend.create_like(5, actor2_id)
 
-        eq_(like_activity_dict['targetActivity'], '5')
         eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
 
@@ -537,7 +534,6 @@ class TestRiakBackend(object):
         #now create a reply for the activity
         like_activity_dict, activity_obj_dict = self._backend.create_like(5, actor2_id)
 
-        eq_(like_activity_dict['targetActivity'], '5')
         eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
 
@@ -574,7 +570,6 @@ class TestRiakBackend(object):
         #now create a reply for the activity
         reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, "This is a reply.")
 
-        eq_(reply_activity_dict['targetActivity'], '5')
         eq_(reply_activity_dict['actor']['id'], actor['id'])
         eq_(reply_activity_dict['verb'], 'reply')
 
