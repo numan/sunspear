@@ -308,7 +308,6 @@ class Activity(Model):
             'actor': actor,
             'object': reply_obj,
             'targetActivity': self._dict['id'],
-            'activityAuthor': self._dict['actor'],
             'verb': verb
         }
 
