@@ -105,7 +105,7 @@ class TestRFC3339(object):
     # for the Pacific time zone.
     # See http://en.wikipedia.org/wiki/Pacific_Time_Zone.
     if 'PST' in time.tzname:
-        def testPDTChange(self):
+        def test_PDTChange(self):
             '''Test Daylight saving change'''
             # PDT switch happens at 2AM on March 14, 2010
 
@@ -116,7 +116,7 @@ class TestRFC3339(object):
             eq_(rfc3339(datetime.datetime(2010, 3, 14, 3, 0)),
                              '2010-03-14T03:00:00-07:00')
 
-        def testPSTChange(self):
+        def test_PSTChange(self):
             '''Test Standard time change'''
             # PST switch happens at 2AM on November 6, 2010
 
