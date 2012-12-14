@@ -307,7 +307,6 @@ class Activity(Model):
         reply_dict = {
             'actor': actor,
             'object': reply_obj,
-            'targetActivity': self._dict['id'],
             'verb': verb
         }
 
