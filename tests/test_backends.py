@@ -430,6 +430,7 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
+        set_trace()
         reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, "This is a reply.")
 
         eq_(reply_activity_dict['actor']['id'], actor2_id)

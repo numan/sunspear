@@ -224,43 +224,6 @@ class RiakBackend(object):
 
         activities = self._get_many_activities(activity_ids, filters=filters, audience_targeting=audience_targeting)
 
-        def _extract_activity_keys(activity):
-            keys = []
-            for activity_key in Model._object_fields:
-                if activity_key not in activity:
-                    continue
-                obj = activity.get(activity_key)
-                if isinstance(obj, dict) and obj.get('objectType', None) == 'activity':
-                    keys.append(obj['id'])
-            return keys
-
-        def _dehydrate_sub_activity(sub_activity, obj_list):
-            for activity_key in Model._object_fields:
-                if activity_key not in sub_activity:
-                    continue
-                if isinstance(sub_activity[activity_key], dict) and sub_activity[activity_key].get('objectType', None) == 'activity':
-                    sub_activity[activity_key].update(obj_list[sub_activity[activity_key]['id']])
-            return sub_activity
-
-        #We might also have to get sub activities for things like replies and likes
-        sub_activity_ids = set()
-        for activity in activities:
-            for collection in Activity._response_fields:
-                if collection in activity and activity[collection]['items']:
-                    for item in activity[collection]['items']:
-                        sub_activity_ids.update(_extract_activity_keys(item))
-
-        if sub_activity_ids:
-            sub_activities = self._get_many_activities(sub_activity_ids)
-            sub_activities_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
-
-            #Hydrate out any subactivities we may have
-            for activity in activities:
-                for collection in Activity._response_fields:
-                    if collection in activity and activity[collection]['items']:
-                        for i, item in enumerate(activity[collection]['items']):
-                            activity[collection]['items'][i] = _dehydrate_sub_activity(item, sub_activities_dict)
-
         activities = self.dehydrate_activities(activities)
         original_activities = copy.deepcopy(activities)
 
@@ -272,58 +235,123 @@ class RiakBackend(object):
         """
         Takes a raw list of activities returned from riak and replace keys with contain ids for riak objects with actual riak object
         """
-        def _extract_object_keys(activity):
-            keys = []
-            for object_key in Model._object_fields + Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields:
-                if object_key not in activity:
-                    continue
-                objects = activity.get(object_key)
-                if isinstance(objects, dict) and objects.get('objectType', None) == 'activity':
-                    keys = keys + _extract_object_keys(objects)
-                if isinstance(objects, list):
-                    keys = keys + objects
-                if isinstance(objects, basestring):
-                    keys.append(objects)
-            return keys
-
-        def _dehydrate_object_keys(activity, objects_dict):
-            for object_key in Model._object_fields + Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields:
-                if object_key not in activity:
-                    continue
-                activity_objects = activity.get(object_key)
-                if isinstance(activity_objects, dict) and activity_objects.get('objectType', None) == 'activity':
-                    activity[object_key] = _dehydrate_object_keys(activity_objects, objects_dict)
-                if isinstance(activity_objects, list):
-                    activity[object_key] = [objects_dict.get(obj_id, {}) for obj_id in activity_objects]
-                if isinstance(activity_objects, basestring):
-                    activity[object_key] = objects_dict.get(activity_objects, {})
-            return activity
+        activities = self._extract_sub_activities(activities)
 
         #collect a list of unique object ids. We only iterate through the fields that we know
         #for sure are objects. User is responsible for hydrating all other fields.
         object_ids = set()
         for activity in activities:
-            object_ids.update(_extract_object_keys(activity))
+            object_ids.update(self._extract_object_keys(activity))
 
             for collection in Activity._response_fields:
                 if collection in activity and activity[collection]['items']:
                     for item in activity[collection]['items']:
-                        object_ids.update(_extract_object_keys(item))
+                        object_ids.update(self._extract_object_keys(item))
 
         #Get the ids of the objects we have collected
         objects = self._get_many_objects(object_ids)
         objects_dict = dict(((obj["id"], obj,) for obj in objects))
 
+        #We also need to extract any activities that were deiguised as objects. IE activities with
+        #objectType=activity
+        activities_in_objects_ids = set()
+
         #replace the object ids with the hydrated objects
         for activity in activities:
-            activity = _dehydrate_object_keys(activity, objects_dict)
+            activity = self._dehydrate_object_keys(activity, objects_dict)
+            activities_in_objects_ids.update(self._extract_activity_keys(activity))
 
             for collection in Activity._response_fields:
                 if collection in activity and activity[collection]['items']:
                     for i, item in enumerate(activity[collection]['items']):
-                        activity[collection]['items'][i] = _dehydrate_object_keys(item, objects_dict)
+                        activity[collection]['items'][i] = self._dehydrate_object_keys(item, objects_dict)
+
+        if activities_in_objects_ids:
+            sub_activities = self._get_many_activities(activities_in_objects_ids)
+            activities_in_objects_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
+            for activity in activities:
+                activity = self._dehydrate_sub_activity(activity, activities_in_objects_dict)
 
         return activities
+
+    def _extract_sub_activities(self, activities):
+        """
+        Extract all objects that have an objectType of activity as an activity
+        """
+        #We might also have to get sub activities for things like replies and likes
+        sub_activity_ids = set()
+        for activity in activities:
+            for collection in Activity._response_fields:
+                if collection in activity and activity[collection]['items']:
+                    for item in activity[collection]['items']:
+                        sub_activity_ids.update(self._extract_activity_keys(item))
+
+        if sub_activity_ids:
+            sub_activities = self._get_many_activities(sub_activity_ids)
+            sub_activities_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
+
+            #Hydrate out any subactivities we may have
+            for activity in activities:
+                for collection in Activity._response_fields:
+                    if collection in activity and activity[collection]['items']:
+                        for i, item in enumerate(activity[collection]['items']):
+                            activity[collection]['items'][i] = self._dehydrate_sub_activity(item, sub_activities_dict)
+
+        return activities
+
+    def _extract_activity_keys(self, activity):
+        keys = []
+        for activity_key in Model._object_fields + ['inReplyTo']:
+            if activity_key not in activity:
+                continue
+            obj = activity.get(activity_key)
+            if isinstance(obj, dict):
+                if obj.get('objectType', None) == 'activity':
+                    keys.append(obj['id'])
+                if obj.get('inReplyTo', None):
+                    [keys.append(in_reply_to_obj['id']) for in_reply_to_obj in obj['inReplyTo']]
+        return keys
+
+    def _dehydrate_sub_activity(self, sub_activity, obj_list):
+        for activity_key in Model._object_fields:
+            if activity_key not in sub_activity:
+                continue
+            if isinstance(sub_activity[activity_key], dict):
+                if sub_activity[activity_key].get('objectType', None) == 'activity':
+                    sub_activity[activity_key].update(obj_list[sub_activity[activity_key]['id']])
+                if sub_activity[activity_key].get('inReplyTo', None):
+                    for i, in_reply_to_obj in enumerate(sub_activity[activity_key]['inReplyTo']):
+                        sub_activity[activity_key]['inReplyTo'][i]\
+                            .update(obj_list[sub_activity[activity_key]['inReplyTo'][i]['id']])
+
+        return sub_activity
+
+    def _extract_object_keys(self, activity):
+        keys = []
+        for object_key in Model._object_fields + Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields:
+            if object_key not in activity:
+                continue
+            objects = activity.get(object_key)
+            if isinstance(objects, dict) and objects.get('objectType', None) == 'activity':
+                keys = keys + self._extract_object_keys(objects)
+            if isinstance(objects, list):
+                keys = keys + objects
+            if isinstance(objects, basestring):
+                keys.append(objects)
+        return keys
+
+    def _dehydrate_object_keys(self, activity, objects_dict):
+        for object_key in Model._object_fields + Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields:
+            if object_key not in activity:
+                continue
+            activity_objects = activity.get(object_key)
+            if isinstance(activity_objects, dict) and activity_objects.get('objectType', None) == 'activity':
+                activity[object_key] = self._dehydrate_object_keys(activity_objects, objects_dict)
+            if isinstance(activity_objects, list):
+                activity[object_key] = [objects_dict.get(obj_id, {}) for obj_id in activity_objects]
+            if isinstance(activity_objects, basestring):
+                activity[object_key] = objects_dict.get(activity_objects, {})
+        return activity
 
     def _get_many_objects(self, object_ids):
         """
