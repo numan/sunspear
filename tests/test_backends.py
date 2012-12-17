@@ -430,7 +430,6 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        set_trace()
         reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, "This is a reply.")
 
         eq_(reply_activity_dict['actor']['id'], actor2_id)
@@ -594,7 +593,7 @@ class TestRiakBackend(object):
         eq_(result, [])
 
 
-class TestRiakBackendHydrate(object):
+class TestRiakBackendDehydrate(object):
     def setUp(self):
         self._backend = RiakBackend(**riak_connection_options)
         self._riak_client = self._backend._get_riak_client()
@@ -605,6 +604,7 @@ class TestRiakBackendHydrate(object):
 
         self.object_id = '4353'
         self.object_id2 = '7654'
+        self.object_id3 = '7655'
 
         self.reply_obj_id = '9999'
         self.reply_obj_id2 = '9998'
@@ -725,12 +725,14 @@ class TestRiakBackendHydrate(object):
 
         self.obj = {"objectType": "something", "id": self.object_id, "published": '2012-07-05T12:00:00Z'}
         self.obj2 = {"objectType": "something", "id": self.object_id2, "published": '2012-07-05T12:00:00Z'}
+        self.obj3 = {"objectType": "something", "id": self.object_id3, "published": '2012-07-05T12:00:00Z', 'inReplyTo': [{'objectType': 'activity', 'id': self.reply_activity_id}]}
 
         self._backend._objects.get(self.actor_id).delete()
         self._backend._objects.get(self.actor_id2).delete()
         self._backend._objects.get(self.actor_id3).delete()
         self._backend._objects.get(self.object_id).delete()
         self._backend._objects.get(self.object_id2).delete()
+        self._backend._objects.get(self.object_id3).delete()
         self._backend._objects.get(self.reply_obj_id).delete()
         self._backend._objects.get(self.reply_obj_id2).delete()
         self._backend._objects.get(self.like_obj_id).delete()
@@ -747,6 +749,7 @@ class TestRiakBackendHydrate(object):
         self._backend._objects.new(key=self.actor3["id"]).set_data(self.actor3).store()
         self._backend._objects.new(key=self.obj["id"]).set_data(self.obj).store()
         self._backend._objects.new(key=self.obj2["id"]).set_data(self.obj2).store()
+        self._backend._objects.new(key=self.obj3["id"]).set_data(self.obj3).store()
         self._backend._objects.new(key=self.reply_1["id"]).set_data(self.reply_1).store()
         self._backend._objects.new(key=self.reply_2["id"]).set_data(self.reply_2).store()
         self._backend._objects.new(key=self.like_1["id"]).set_data(self.like_1).store()
@@ -758,6 +761,23 @@ class TestRiakBackendHydrate(object):
         self._backend._activities.new(key=self.like_activity_2["id"]).set_data(self.like_activity_2).store()
         self._backend._activities.new(key=self.activity_1["id"]).set_data(self.activity_1).store()
         self._backend._activities.new(key=self.activity_2["id"]).set_data(self.activity_2).store()
+
+    def test_dehydrate_activities_with_in_reply_to(self):
+
+        activities = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [self.actor_id, self.actor_id2], "object": self.object_id3},
+        ]
+
+        expected = [
+            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [self.actor, self.actor2], "object": self.obj3},
+        ]
+        expected[0]['object']['inReplyTo'][0].update(self.reply_activity_1)
+        expected[0]['object']['inReplyTo'][0]['target'] = self.actor3
+        expected[0]['object']['inReplyTo'][0]['object'] = self.reply_1
+        expected[0]['object']['inReplyTo'][0]['actor'] = self.actor
+
+        result = self._backend.dehydrate_activities(activities)
+        eq_(result, expected)
 
     def test_dehydrate_activities_with_replies(self):
 
