@@ -113,7 +113,11 @@ class Model(object):
         :type riak_object: RiakObject
         :param riak_object: a RiakObject representing the model of  the class
         """
-        riak_object.add_index("timestamp_int", self._get_timestamp())
+        if not riak_object.get_indexes('timestamp_int'):
+            riak_object.add_index("timestamp_int", self._get_timestamp())
+        else:
+            riak_object.remove_index('modified_int')
+            riak_object.add_index("modified_int", self._get_timestamp())
         return riak_object
 
     def save(self, *args, **kwargs):

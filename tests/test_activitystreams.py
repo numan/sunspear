@@ -173,14 +173,32 @@ class TestActivity(object):
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: bcc")
 
-    def test_set_indexes(self):
+    def test_set_indexes_not_already_created_set(self):
         obj = Activity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
         riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = []
 
         obj.set_indexes(riak_obj_mock)
 
         calls = [
             call.add_index('timestamp_int', ANY),
+            call.add_index('verb_bin', ANY),
+            call.add_index('actor_bin', ANY),
+            call.add_index('object_bin', ANY),
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 4)
+
+    def test_set_indexes_already_created(self):
+        obj = Activity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
+        riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = 123456
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('modified_int', ANY),
             call.add_index('verb_bin', ANY),
             call.add_index('actor_bin', ANY),
             call.add_index('object_bin', ANY),
@@ -246,19 +264,6 @@ class TestModelMethods(object):
 
         eq_(obj_dict, data)
 
-    def test_set_indexes(self):
-        obj = Model({})
-        riak_obj_mock = MagicMock()
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('timestamp_int', ANY)
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 1)
-
     def test__parse_date(self):
         obj = Model({})
         d = datetime.datetime.utcnow()
@@ -270,11 +275,40 @@ class TestModelMethods(object):
         #no date passed
         ok_(isinstance(obj._parse_date(date=None), basestring))
 
+    def test_set_indexes_not_already_created_set(self):
+        obj = Model({})
+        riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = []
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('timestamp_int', ANY)
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 1)
+
+    def test_set_indexes_already_created(self):
+        obj = Model({})
+        riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = 12343214
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('modified_int', ANY)
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 1)
+
 
 class TestReplyActivityMethods(object):
-    def test_set_indexes(self):
+    def test_set_indexes_not_already_created_set(self):
         obj = ReplyActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
         riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = []
 
         obj.set_indexes(riak_obj_mock)
 
@@ -289,16 +323,53 @@ class TestReplyActivityMethods(object):
         riak_obj_mock.assert_has_calls(calls, any_order=True)
         eq_(riak_obj_mock.add_index.call_count, 5)
 
+    def test_set_indexes_already_created(self):
+        obj = ReplyActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
+        riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = 12343214
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('modified_int', ANY),
+            call.add_index('inreplyto_bin', ANY),
+            call.add_index('verb_bin', ANY),
+            call.add_index('actor_bin', ANY),
+            call.add_index('object_bin', ANY),
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 5)
+
 
 class TestLikeActivityMethods(object):
-    def test_set_indexes(self):
+    def test_set_indexes_not_already_created_set(self):
         obj = LikeActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
         riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = []
 
         obj.set_indexes(riak_obj_mock)
 
         calls = [
             call.add_index('timestamp_int', ANY),
+            call.add_index('inreplyto_bin', ANY),
+            call.add_index('verb_bin', ANY),
+            call.add_index('actor_bin', ANY),
+            call.add_index('object_bin', ANY),
+        ]
+
+        riak_obj_mock.assert_has_calls(calls, any_order=True)
+        eq_(riak_obj_mock.add_index.call_count, 5)
+
+    def test_set_indexes_already_created(self):
+        obj = LikeActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
+        riak_obj_mock = MagicMock()
+        riak_obj_mock.get_indexes.return_value = 12343214
+
+        obj.set_indexes(riak_obj_mock)
+
+        calls = [
+            call.add_index('modified_int', ANY),
             call.add_index('inreplyto_bin', ANY),
             call.add_index('verb_bin', ANY),
             call.add_index('actor_bin', ANY),
