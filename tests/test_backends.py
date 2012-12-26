@@ -440,6 +440,39 @@ class TestRiakBackend(object):
         eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
         eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
 
+    def test_create_reply_with_extra_data(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+        extra = {'published': datetime.datetime(year=2012, month=1, day=1), 'foo': 'bar'}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        reply_activity_dict, activity_obj_dict = self._backend.create_reply(5, actor2_id, "This is a reply.", extra=extra)
+
+        eq_(extra['published'].strftime('%Y-%m-%dT%H:%M:%S') + "Z", reply_activity_dict['published'])
+        eq_(extra['foo'], reply_activity_dict['foo'])
+
+        eq_(reply_activity_dict['actor']['id'], actor2_id)
+        eq_(reply_activity_dict['verb'], 'reply')
+
+        eq_(activity_obj_dict['replies']['totalItems'], 1)
+        eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
+        eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
+        eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
+
     def test_create_reply_as_dict(self):
         self._backend._activities.get('5').delete()
 
@@ -474,6 +507,7 @@ class TestRiakBackend(object):
 
         eq_(reply_activity_dict['actor']['id'], actor2_id)
         eq_(reply_activity_dict['verb'], 'reply')
+        eq_(reply_activity_dict['object']['metadata'], reply_dict['metadata'])
 
         eq_(activity_obj_dict['replies']['totalItems'], 1)
         eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])

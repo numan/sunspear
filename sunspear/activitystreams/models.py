@@ -134,7 +134,7 @@ class Model(object):
         self.riak_validate(*args, **kwargs)
 
         #we are suppose to maintain our own published and updated fields
-        if 'published' in self._reserved_fields and not self._dict.get('published', None):
+        if not self._dict.get('published', None):
             self._dict['published'] = datetime.datetime.utcnow()
         elif 'updated' in self._reserved_fields:
             self._dict['updated'] = datetime.datetime.utcnow()
@@ -200,7 +200,7 @@ class Model(object):
 class Activity(Model):
     _required_fields = ['verb', 'actor', 'object']
     _media_fields = ['icon']
-    _reserved_fields = ['published', 'updated']
+    _reserved_fields = ['updated']
     _response_fields = ['replies', 'likes']
     _direct_audience_targeting_fields = ['to', 'bto']
     _indirect_audience_targeting_fields = ['cc', 'bcc']
@@ -287,13 +287,17 @@ class Activity(Model):
         if not update and self._bucket.get(self._dict["id"]).exists():
             raise SunspearValidationException("Object with ID already exists")
 
-    def create_reply(self, actor, reply):
-        return self._create_activity_subitem(actor, reply, verb="reply", objectType="reply", collection="replies", activityClass=ReplyActivity)
+    def create_reply(self, actor, reply, extra={}):
+        return self._create_activity_subitem(actor, content=reply, verb="reply", \
+            objectType="reply", collection="replies", activityClass=ReplyActivity, extra=extra)
 
-    def create_like(self, actor):
-        return self._create_activity_subitem(actor, verb="like", objectType="like", collection="likes", activityClass=LikeActivity)
+    def create_like(self, actor, extra={}):
+        return self._create_activity_subitem(actor, verb="like", objectType="like", \
+            collection="likes", activityClass=LikeActivity, extra=extra)
 
-    def _create_activity_subitem(self, actor, content="", verb="reply", objectType="reply", collection="replies", activityClass=None):
+    def _create_activity_subitem(self, actor, content="", verb="reply", objectType="reply", \
+        collection="replies", activityClass=None, extra={}):
+
         in_reply_to_dict = {
             'objectType': 'activity',
             'displayName': self._dict['verb'],
@@ -316,6 +320,10 @@ class Activity(Model):
 
         if isinstance(content, dict):
             reply_dict['object'].update(content)
+
+        if extra:
+            extra.update(reply_dict)
+            reply_dict = extra
 
         _activity = activityClass(reply_dict, activity_id=self._dict['id'], bucket=self._bucket, objects_bucket=self._objects_bucket)
         _activity.save()
