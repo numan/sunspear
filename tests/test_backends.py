@@ -77,6 +77,30 @@ class TestRiakBackend(object):
         eq_(len(objects), 0)
         eq_(objects, [])
 
+    def test_clear_all(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        ok_(len(self._backend._activities.get_keys()) > 0)
+        ok_(len(self._backend._objects.get_keys()) > 0)
+
+        self._backend.clear_all()
+
+        eq_(len(self._backend._activities.get_keys()), 0)
+        eq_(len(self._backend._objects.get_keys()), 0)
+
     def test_create_activity(self):
         self._backend._activities.get('5').delete()
 

@@ -117,10 +117,30 @@ class RiakBackend(object):
             'hosts': hosts,
         })
 
-        self._streams = self._riak_backend.bucket("streams")
-        self._followers = self._riak_backend.bucket("followers")
         self._objects = self._riak_backend.bucket("objects")
         self._activities = self._riak_backend.bucket("activities")
+
+
+    def clear_all(self):
+        """
+        Deletes all activity stream data from riak
+        """
+        self.clear_all_activities()
+        self.clear_all_objects()
+
+    def clear_all_objects(self):
+        """
+        Deletes all objects data from riak
+        """
+        for key in self._objects.get_keys():
+            self._objects.get(key).delete()
+
+    def clear_all_activities(self):
+        """
+        Deletes all activities data from riak
+        """
+        for key in self._activities.get_keys():
+            self._activities.get(key).delete()
 
     def create_object(self, object_dict):
         """
