@@ -320,9 +320,72 @@ class TestRiakBackend(object):
 
         activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], filters={'verb': ['type3'], 'actor': ['1237', '1238']})
 
+        eq_(3, len(activities))
         eq_(activities[0]['id'], activity_3['id'])
         eq_(activities[1]['id'], activity_4['id'])
         eq_(activities[2]['id'], activity_5['id'])
+
+    def test__get_many_activities_with_raw_filter(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+        self._backend._activities.get('3').delete()
+        self._backend._activities.get('4').delete()
+        self._backend._activities.get('5').delete()
+
+        activity_1 = {"id": "1", "title": "Stream Item 1", "verb": "type1", "actor": "1234", "object": "5678"}
+        activity_2 = {"id": "2", "title": "Stream Item 2", "verb": "type1", "actor": "1235", "object": "5678"}
+        activity_3 = {"id": "3", "title": "Stream Item 3", "verb": "type3", "actor": "1236", "object": "5678"}
+        activity_4 = {"id": "4", "title": "Stream Item 4", "verb": "type4", "actor": "1237", "object": "5678"}
+        activity_5 = {"id": "5", "title": "Stream Item 5", "verb": "type5", "actor": "1238", "object": "5678"}
+
+        self._backend.create_activity(activity_1)
+        self._backend.create_activity(activity_2)
+        self._backend.create_activity(activity_3)
+        self._backend.create_activity(activity_4)
+        self._backend.create_activity(activity_5)
+
+        raw_filter = """
+        function(obj) {
+            return obj.verb == "type1";
+        }
+        """
+        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], raw_filter=raw_filter)
+
+        eq_(2, len(activities))
+        eq_(activities[0]['id'], activity_1['id'])
+        eq_(activities[1]['id'], activity_2['id'])
+
+    def test__get_many_activities_with_raw_filter_and_other_filter_only_runs_raw(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+        self._backend._activities.get('3').delete()
+        self._backend._activities.get('4').delete()
+        self._backend._activities.get('5').delete()
+
+        activity_1 = {"id": "1", "title": "Stream Item 1", "verb": "type1", "actor": "1234", "object": "5678"}
+        activity_2 = {"id": "2", "title": "Stream Item 2", "verb": "type1", "actor": "1235", "object": "5678"}
+        activity_3 = {"id": "3", "title": "Stream Item 3", "verb": "type3", "actor": "1236", "object": "5678"}
+        activity_4 = {"id": "4", "title": "Stream Item 4", "verb": "type4", "actor": "1237", "object": "5678"}
+        activity_5 = {"id": "5", "title": "Stream Item 5", "verb": "type5", "actor": "1238", "object": "5678"}
+
+        self._backend.create_activity(activity_1)
+        self._backend.create_activity(activity_2)
+        self._backend.create_activity(activity_3)
+        self._backend.create_activity(activity_4)
+        self._backend.create_activity(activity_5)
+
+        raw_filter = """
+        function(obj) {
+            return obj.verb == "type1";
+        }
+        """
+
+        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], raw_filter=raw_filter, \
+            filters={'verb': ['type3'], 'actor': ['1237', '1238']})
+
+        eq_(2, len(activities))
+        eq_(activities[0]['id'], activity_1['id'])
+        eq_(activities[1]['id'], activity_2['id'])
 
     def test_dehydrate_activities(self):
         actor_id = '1234'

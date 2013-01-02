@@ -46,6 +46,10 @@ JS_MAP = """
 
 JS_REDUCE_FILTER_PROP = """
     function(value, arg) {
+        if (arg['raw_filter'] != "") {
+            raw_filter = eval(arg['raw_filter']);
+            return value.filter(raw_filter);
+        }
         return value.filter(function(obj){
             for (var filter in arg['filters']){
                 if (filter in obj) {
@@ -227,7 +231,7 @@ class RiakBackend(object):
         """
         return self._get_many_objects(object_ids)
 
-    def get_activities(self, activity_ids=[], filters={}, include_public=False, \
+    def get_activities(self, activity_ids=[], raw_filter="", filters={}, include_public=False, \
         audience_targeting={}, aggregation_pipeline=[]):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
@@ -238,6 +242,10 @@ class RiakBackend(object):
         :type filters: dict
         :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
         Filters do not work for nested dictionaries.
+        :type raw_filter: string
+        :param raw_filter: allows you to specify a javascript function as a string. The function should return ``true`` if the activity should be included in the result set
+        or ``false`` it shouldn't. If you specify a raw filter, the filters specified in ``filters`` will not run. How ever, the results will still be filtered based on
+        the ``audience_targeting`` parameter.
         :type include_public: boolean
         :param include_public: If ``True``, and the ``audience_targeting`` dictionary is defined, activities that are
         not targeted towards anyone are included in the results
@@ -250,7 +258,7 @@ class RiakBackend(object):
         if not activity_ids:
             return []
 
-        activities = self._get_many_activities(activity_ids, filters=filters, include_public=include_public, \
+        activities = self._get_many_activities(activity_ids, raw_filter=raw_filter, filters=filters, include_public=include_public, \
             audience_targeting=audience_targeting)
 
         activities = self.dehydrate_activities(activities)
@@ -443,12 +451,16 @@ class RiakBackend(object):
         results = objects.map("Riak.mapValuesJson").reduce(JS_REDUCE_OBJS).run()
         return results or []
 
-    def _get_many_activities(self, activity_ids=[], filters={}, include_public=False, audience_targeting={}):
+    def _get_many_activities(self, activity_ids=[], raw_filter="", filters={}, include_public=False, audience_targeting={}):
         """
         Given a list of activity ids, returns a list of activities from riak.
 
         :type activity_ids: list
         :param activity_ids: The list of activities you want to retrieve
+        :type raw_filter: string
+        :param raw_filter: allows you to specify a javascript function as a string. The function should return ``true`` if the activity should be included in the result set
+        or ``false`` it shouldn't. If you specify a raw filter, the filters specified in ``filters`` will not run. How ever, the results will still be filtered based on
+        the ``audience_targeting`` parameter.
         :type filters: dict
         :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
         Filters do not work for nested dictionaries.
@@ -469,8 +481,8 @@ class RiakBackend(object):
         if audience_targeting:
             results = results.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'public': include_public, 'filters': audience_targeting}})
 
-        if filters:
-            results = results.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'filters': filters}})
+        if filters or raw_filter:
+            results = results.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'raw_filter': raw_filter, 'filters': filters}})
 
         results = results.reduce(JS_REDUCE).run()
         results = results or []
