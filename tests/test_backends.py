@@ -365,6 +365,32 @@ class TestRiakBackend(object):
         result = self._backend.dehydrate_activities(activities)
         eq_(result, expected)
 
+    def test__get_many_activities_with_audience_targeting_and_public(self):
+        self._backend._activities.get('1').delete()
+        self._backend._activities.get('2').delete()
+        self._backend._activities.get('3').delete()
+        self._backend._activities.get('4').delete()
+        self._backend._activities.get('5').delete()
+        self._backend._activities.get('6').delete()
+        self._backend._activities.get('7').delete()
+        self._backend._activities.get('8').delete()
+
+        self._backend.create_activity({"id": 1, "title": "Stream Item 1", "verb": "type1", "actor": "1234", "object": "5678", 'to': ['100', '101']})
+        self._backend.create_activity({"id": 2, "title": "Stream Item 2", "verb": "type1", "actor": "1234", "object": "5678", 'bto': ['100']})
+        self._backend.create_activity({"id": 3, "title": "Stream Item 3", "verb": "type3", "actor": "1234", "object": "5678", 'cc': ['103', '104'], 'bcc': ['100']})
+        self._backend.create_activity({"id": 4, "title": "Stream Item 4", "verb": "type4", "actor": "1234", "object": "5678", 'bto': ['105']})
+        self._backend.create_activity({"id": 5, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678", 'to': ['100', '101'], 'cc': ['103']})
+        self._backend.create_activity({"id": 6, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678"})
+        self._backend.create_activity({"id": 7, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678"})
+        self._backend.create_activity({"id": 8, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678"})
+
+        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5', '6', '7', '8'], \
+            include_public=True, audience_targeting={'to': ['100', '105'], 'bto': ['105']})
+
+        eq_(len(activities), 6)
+        for i in range(6):
+            ok_(activities[i]['id'] in ['1', '4', '5', '6', '7', '8'])
+
     def test__get_many_activities_with_audience_targeting(self):
         self._backend._activities.get('1').delete()
         self._backend._activities.get('2').delete()

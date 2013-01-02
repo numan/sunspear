@@ -65,6 +65,9 @@ JS_REDUCE_FILTER_AUD_TARGETTING = """
     function(value, arg) {
         var audience_targeting = ['to', 'bto', 'cc', 'bcc'];
         return value.filter(function(obj){
+            if (arg['public'] && audience_targeting.reduce(function(prev, next){ return prev && !(next in obj) }, true)) {
+                return true;
+            }
             for (var i in audience_targeting){
                 var targeting_field = audience_targeting[i];
                 if (targeting_field in obj && targeting_field in arg['filters']) {
@@ -119,7 +122,6 @@ class RiakBackend(object):
 
         self._objects = self._riak_backend.bucket("objects")
         self._activities = self._riak_backend.bucket("activities")
-
 
     def clear_all(self):
         """
@@ -225,7 +227,8 @@ class RiakBackend(object):
         """
         return self._get_many_objects(object_ids)
 
-    def get_activities(self, activity_ids=[], filters={}, audience_targeting={}, aggregation_pipeline=[]):
+    def get_activities(self, activity_ids=[], filters={}, include_public=False, \
+        audience_targeting={}, aggregation_pipeline=[]):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
         by.
@@ -235,6 +238,9 @@ class RiakBackend(object):
         :type filters: dict
         :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
         Filters do not work for nested dictionaries.
+        :type include_public: boolean
+        :param include_public: If ``True``, and the ``audience_targeting`` dictionary is defined, activities that are
+        not targeted towards anyone are included in the results
         :type audience_targeting: dict
         :param audience_targeting: Filters the list of activities targeted towards a particular audience. The key for the dictionary is one of ``to``, ``cc``, ``bto``, or ``bcc``.
         The values are an array of object ids
@@ -244,7 +250,8 @@ class RiakBackend(object):
         if not activity_ids:
             return []
 
-        activities = self._get_many_activities(activity_ids, filters=filters, audience_targeting=audience_targeting)
+        activities = self._get_many_activities(activity_ids, filters=filters, include_public=include_public, \
+            audience_targeting=audience_targeting)
 
         activities = self.dehydrate_activities(activities)
         original_activities = copy.deepcopy(activities)
@@ -436,7 +443,7 @@ class RiakBackend(object):
         results = objects.map("Riak.mapValuesJson").reduce(JS_REDUCE_OBJS).run()
         return results or []
 
-    def _get_many_activities(self, activity_ids=[], filters={}, audience_targeting={}):
+    def _get_many_activities(self, activity_ids=[], filters={}, include_public=False, audience_targeting={}):
         """
         Given a list of activity ids, returns a list of activities from riak.
 
@@ -445,6 +452,9 @@ class RiakBackend(object):
         :type filters: dict
         :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
         Filters do not work for nested dictionaries.
+        :type include_public: boolean
+        :param include_public: If ``True``, and the ``audience_targeting`` dictionary is defined, activities that are
+        not targeted towards anyone are included in the results
         :type audience_targeting: dict
         :param audience_targeting: Filters the list of activities targeted towards a particular audience. The key for the dictionary is one of ``to``, ``cc``, ``bto``, or ``bcc``.
         """
@@ -457,7 +467,7 @@ class RiakBackend(object):
         results = activities.map(JS_MAP)
 
         if audience_targeting:
-            results = results.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'filters': audience_targeting}})
+            results = results.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'public': include_public, 'filters': audience_targeting}})
 
         if filters:
             results = results.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'filters': filters}})
