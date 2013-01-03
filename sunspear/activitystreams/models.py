@@ -383,6 +383,16 @@ class Activity(Model):
 
         return _parsed_data
 
+    def delete(self):
+        """
+        Deletes an activity item and all associated response items.
+        """
+        for response_field in self._response_fields:
+            if response_field in self._dict:
+                for response_item in self._dict[response_field]['items']:
+                    self._bucket.get(response_item['id']).delete()
+        self.get_riak_object().delete()
+
     def _rollback(self, new_objects, modified_objects):
         [obj_created.get_riak_object().delete() for obj_created in new_objects]
         [obj_modified.get_riak_object().store() for obj_modified in modified_objects]

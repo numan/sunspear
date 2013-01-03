@@ -200,6 +200,17 @@ class RiakBackend(object):
         dehydrated_activities = self.dehydrate_activities([like_activity.get_data(), activity.get_data()])
         return dehydrated_activities[0], dehydrated_activities[1]
 
+    def delete(self, activity_id):
+        """
+        Deletes an activity item and all associated sub items
+
+        :type activity_id: string
+        :param activity_id: The id of the activity we want to create a reply for
+        """
+        activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
+        activity.get(key=activity_id)
+        activity.delete()
+
     def delete_reply(self, reply_id):
         """
         Deletes a ``reply`` made on an activity. This will also update the corresponding activity.
