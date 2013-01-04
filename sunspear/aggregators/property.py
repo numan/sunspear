@@ -106,6 +106,6 @@ class PropertyAggregator(BaseAggregator):
 
                 #this might not be useful but meh, we'll see
                 aggregated_activity.update({'grouped_by_values': keys})
-                aggregated_activity.update({'grouped_by_attributes': group_by_attributes})
+                aggregated_activity.update({'grouped_by_attributes': list(group_by_attributes)})
                 grouped_activities_list.append(aggregated_activity)
         return grouped_activities_list
