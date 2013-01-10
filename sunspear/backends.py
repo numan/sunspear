@@ -172,7 +172,7 @@ class RiakBackend(object):
 
         return self.dehydrate_activities([riak_object.get_data()])[0]
 
-    def create_reply(self, activity_id, actor, reply, extra={}):
+    def create_reply(self, activity_id, actor, content, extra={}, **kwargs):
         """
         Creates a ``reply`` for an activity.
 
@@ -182,11 +182,11 @@ class RiakBackend(object):
         activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
         activity.get(key=activity_id)
 
-        reply_activity, activity = activity.create_reply(actor, reply, extra=extra)
+        reply_activity, activity = activity.create_reply(actor, content, extra=extra)
         dehydrated_activities = self.dehydrate_activities([reply_activity.get_data(), activity.get_data()])
         return dehydrated_activities[0], dehydrated_activities[1]
 
-    def create_like(self, activity_id, actor, extra={}):
+    def create_like(self, activity_id, actor, content="", extra={}, **kwargs):
         """
         Creates a ``like`` for an activity.
 
@@ -196,7 +196,7 @@ class RiakBackend(object):
         activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
         activity.get(key=activity_id)
 
-        like_activity, activity = activity.create_like(actor, extra=extra)
+        like_activity, activity = activity.create_like(actor, content, extra=extra)
         dehydrated_activities = self.dehydrate_activities([like_activity.get_data(), activity.get_data()])
         return dehydrated_activities[0], dehydrated_activities[1]
 

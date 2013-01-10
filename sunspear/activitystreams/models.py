@@ -287,12 +287,12 @@ class Activity(Model):
         if not update and self._bucket.get(self._dict["id"]).exists():
             raise SunspearValidationException("Object with ID already exists")
 
-    def create_reply(self, actor, reply, extra={}):
-        return self._create_activity_subitem(actor, content=reply, verb="reply", \
+    def create_reply(self, actor, content, extra={}):
+        return self._create_activity_subitem(actor, content=content, verb="reply", \
             objectType="reply", collection="replies", activityClass=ReplyActivity, extra=extra)
 
-    def create_like(self, actor, extra={}):
-        return self._create_activity_subitem(actor, verb="like", objectType="like", \
+    def create_like(self, actor, content="", extra={}):
+        return self._create_activity_subitem(actor, content=content, verb="like", objectType="like", \
             collection="likes", activityClass=LikeActivity, extra=extra)
 
     def _create_activity_subitem(self, actor, content="", verb="reply", objectType="reply", \
