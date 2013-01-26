@@ -1,5 +1,5 @@
 """
-Copyright 2012 Numan Sachwani <numan856@gmail.com>
+Copyright 2013 Numan Sachwani <numan856@gmail.com>
 
 This file is provided to you under the Apache License,
 Version 2.0 (the "License"); you may not use this file
@@ -17,6 +17,8 @@ under the License.
 """
 
 from sunspear.activitystreams.models import Object, Activity, Model, ReplyActivity, LikeActivity
+from sunspear.exceptions import (SunspearDuplicateEntryException, SunspearInvalidActivityException,
+    SunspearInvalidObjectException)
 
 from nydus.db import create_cluster
 
@@ -104,10 +106,218 @@ JS_REDUCE_OBJS = """
 
 class BaseBackend(object):
     def clear_all_objects(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def clear_all_activities(self):
-        raise NotImplemented()
+        raise NotImplementedError()
+
+    #TODO: Tests
+    def create_activity(self, activity, **kwargs):
+        """
+        Stores a new ``activity`` in the backend. If an object with the same id already exists in
+        the backend, a ``SunspearDuplicateEntryException`` is raised. If an ID is not provided, one
+        is generated on the fly.
+
+        :type activity: dict
+        :param activity: activity we want to store in the backend
+
+        :raises: ``SunspearDuplicateEntryException`` if the record already exists in the database.
+        :return: dict representing the new activity.
+        """
+        activity_id = self._extract_id(activity)
+        if activity_id:
+            existing_activity = self.get_activity(activity_id)
+            if existing_activity:
+                raise SunspearDuplicateEntryException()
+        else:
+            activity['id'] = self.get_new_id()
+
+        return self.save(activity, **kwargs)
+
+    def activity_create(self, activity, **kwargs):
+        """
+        Stores a new activity to the backend.
+
+        :type activity: dict
+        :param activity: a dict representing the activity
+
+        :return: a dict representing the newly stored activity
+        """
+        raise NotImplementedError()
+
+    def update_activity(self, activity, **kwargs):
+        """
+        Updates an existing activity in the backend. If the object does not exist,
+        it is created in the backend.
+
+        :type activity: dict
+        :param activity: a dict representing the activity
+
+        :raises: ``SunspearInvalidActivityException`` if the activity doesn't have a valid id.
+        :return: a dict representing the newly stored activity
+        """
+        activity_id = self._extract_id(activity)
+        if not activity_id:
+            raise SunspearInvalidActivityException()
+
+        return self.update(activity, **kwargs)
+
+    def activity_update(self, activity, **kwargs):
+        raise NotImplementedError()
+
+    def delete_activity(self, activity, **kwargs):
+        """
+        Deletes an existing activity from the backend.
+
+        :type activity: dict
+        :param activity: a dict representing the activity
+
+        :raises: ``SunspearInvalidActivityException`` if the activity doesn't have a valid id.
+        """
+        activity_id = self._extract_id(activity)
+        if not activity_id:
+            raise SunspearInvalidActivityException()
+
+        return self.delete(activity, **kwargs)
+
+    def activity_delete(self, activity, **kwargs):
+        raise NotImplementedError()
+
+    def get_activity(self, obj, **kwargs):
+        """
+        Gets an obj or a list of activities from the backend.
+
+        :type obj: list
+        :param obj: a list of ids of activities that will be retrieved from
+            the backend.
+
+        :return: a list of activities. If an obj is not found, a partial list should
+            be returned.
+        """
+        return self.activity_get(self._listify(obj), **kwargs)
+
+    def activity_get(self, activity, **kwargs):
+        raise NotImplementedError()
+
+    def create_obj(self, obj, **kwargs):
+        """
+        Stores a new ``obj`` in the backend. If an object with the same id already exists in
+        the backend, a ``SunspearDuplicateEntryException`` is raised. If an ID is not provided, one
+        is generated on the fly.
+
+        :type obj: dict
+        :param obj: obj we want to store in the backend
+
+        :raises: ``SunspearDuplicateEntryException`` if the record already exists in the database.
+        :return: dict representing the new obj.
+        """
+        obj_id = self._extract_id(obj)
+        if obj_id:
+            existing_obj = self.get_obj(obj_id)
+            if existing_obj:
+                raise SunspearDuplicateEntryException()
+        else:
+            obj['id'] = self.get_new_id()
+
+        return self.save(obj, **kwargs)
+
+    def obj_create(self, obj, **kwargs):
+        """
+        Stores a new obj to the backend.
+
+        :type obj: dict
+        :param obj: a dict representing the obj
+
+        :return: a dict representing the newly stored obj
+        """
+        raise NotImplementedError()
+
+    def update_obj(self, obj, **kwargs):
+        """
+        Updates an existing obj in the backend. If the object does not exist,
+        it is created in the backend.
+
+        :type obj: dict
+        :param obj: a dict representing the obj
+
+        :raises: ``SunspearInvalidObjectException`` if the obj doesn't have a valid id.
+        :return: a dict representing the newly stored obj
+        """
+        obj_id = self._extract_id(obj)
+        if not obj_id:
+            raise SunspearInvalidObjectException()
+
+        return self.update(obj, **kwargs)
+
+    def obj_update(self, obj, **kwargs):
+        raise NotImplementedError()
+
+    def delete_obj(self, obj, **kwargs):
+        """
+        Deletes an existing obj from the backend.
+
+        :type obj: dict
+        :param obj: a dict representing the obj
+
+        :raises: ``SunspearInvalidObjectException`` if the obj doesn't have a valid id.
+        """
+        obj_id = self._extract_id(obj)
+        if not obj_id:
+            raise SunspearInvalidObjectException()
+
+        return self.delete(obj, **kwargs)
+
+    def obj_delete(self, obj, **kwargs):
+        raise NotImplementedError()
+
+    def get_obj(self, obj, **kwargs):
+        """
+        Gets an obj or a list of activities from the backend.
+
+        :type obj: list
+        :param obj: a list of ids of activities that will be retrieved from
+            the backend.
+
+        :return: a list of activities. If an obj is not found, a partial list should
+            be returned.
+        """
+        return self.get(self._listify(obj), **kwargs)
+
+    def obj_get(self, activity, **kwargs):
+        raise NotImplementedError()
+
+    def _listify(self, list_or_string):
+        """
+        A simple helper that converts a single ``stream_name`` into a list of 1
+
+        :type list_or_string: string or list
+        :param list_or_string: the name of things as a string or a list of strings
+        """
+        if isinstance(list_or_string, basestring):
+            list_or_string = [list_or_string]
+        else:
+            list_or_string = list_or_string
+
+        return list_or_string
+
+    def _extract_id(self, activity_or_id):
+        """
+        Helper that returns an id if the activity has one.
+        """
+        this_id = activity_or_id
+        if isinstance(activity_or_id, dict):
+            this_id = activity_or_id.get('id', None)
+
+        return this_id
+
+    def get_new_id(self):
+        """
+        Generates a new unique ID. The default implementation uses uuid1 to
+        generate a unique ID.
+
+        :return: a new id
+        """
+        return uuid.uuid1().hex
 
 
 class RiakBackend(BaseBackend):
@@ -512,8 +722,18 @@ class RiakBackend(BaseBackend):
 
         return reordered_results
 
-    def _get_new_uuid(self):
-        return uuid.uuid1().hex
-
-    def _get_riak_client(self):
-        return self._riak_backend
+    def _extract_id(self, activity_or_id):
+        """
+        Helper that returns an id if the activity has one.
+        """
+        this_id = None
+        if isinstance(activity_or_id, basestring):
+            this_id = activity_or_id
+        elif isinstance(activity_or_id, dict):
+            this_id = activity_or_id.get('id', None)
+        else:
+            try:
+                this_id = str(activity_or_id)
+            except:
+                pass
+        return this_id
