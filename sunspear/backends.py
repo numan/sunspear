@@ -219,7 +219,7 @@ class BaseBackend(object):
         else:
             obj['id'] = self.get_new_id()
 
-        return self.save(obj, **kwargs)
+        return self.obj_create(obj, kwargs)(obj, **kwargs)
 
     def obj_create(self, obj, **kwargs):
         """
@@ -247,7 +247,7 @@ class BaseBackend(object):
         if not obj_id:
             raise SunspearInvalidObjectException()
 
-        return self.update(obj, **kwargs)
+        return self.obj_update(obj, **kwargs)
 
     def obj_update(self, obj, **kwargs):
         raise NotImplementedError()
@@ -283,7 +283,59 @@ class BaseBackend(object):
         """
         return self.get(self._listify(obj), **kwargs)
 
-    def obj_get(self, activity, **kwargs):
+    def obj_get(self, obj, **kwargs):
+        raise NotImplementedError()
+
+    def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="",
+        sub_activity_attribute="", **kwargs):
+        """
+        Creates a new sub-activity as a child of ``activity``.
+
+        :type activity: a string or dict
+        :param activity: the activity we want to create the sub-item for
+        :type actor: a string or dict
+        :param actor: the ``object`` creating the sub-activity
+        :type content: a string or dict
+        :param content: a string or an ``object`` representing the content of the sub-activity
+        :type extra: dict
+        :param extra: additional data the is to be included as part of the ``sub-activity`` activity
+        :type sub_activity_verb: string
+        :param sub_activity_verb: the verb of the sub activity
+        :type sub_activity_attribute: string
+        :param sub_activity_attribute: the attribute the sub activity will appear under as part of the
+            original ``activity``
+        """
+        actor_id = self._extract_id(actor)
+        if not actor_id:
+            raise SunspearInvalidObjectException()
+
+        activity_id = self._extract_id(activity)
+        if not activity_id:
+            raise SunspearInvalidActivityException()
+
+        return self.sub_activity_create(activity, actor, content, extra={}, sub_activity_verb="",
+            sub_activity_attribute="", **kwargs)
+
+    def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="",
+        sub_activity_attribute="", **kwargs):
+        raise NotImplementedError()
+
+    def delete_sub_activity(self, sub_activity, sub_activity_verb, **kwargs):
+        """
+        Deletes a ``sub_activity`` made on an activity. This will also update the corresponding activity.
+
+        :type sub_activity: string
+        :param sub_activity: the id of the reply activity to delete
+        :type sub_activity_verb: string
+        :param sub_activity_verb: the verb of the sub activity
+        """
+        activity_id = self._extract_id(sub_activity)
+        if not activity_id:
+            raise SunspearInvalidActivityException()
+
+        return self.sub_activity_delete(sub_activity, sub_activity_verb, **kwargs)
+
+    def sub_activity_delete(self, sub_activity, sub_activity_verb, **kwargs):
         raise NotImplementedError()
 
     def _listify(self, list_or_string):
@@ -318,6 +370,11 @@ class BaseBackend(object):
         :return: a new id
         """
         return uuid.uuid1().hex
+
+SUB_ACTIVITY_MAP = {
+    'reply': (ReplyActivity, 'replies',),
+    'like': (LikeActivity, 'likes',),
+}
 
 
 class RiakBackend(BaseBackend):
@@ -367,100 +424,58 @@ class RiakBackend(BaseBackend):
             self._activities.get(key).delete(rw='all', r='all', w='all', dw='all')
             assert not self._activities.get(key).exists()
 
-    def create_object(self, object_dict):
-        """
-        Creates an object that can be used as part of an activity. If you specific and object with an id
-        that already exists, that object is overriden
-        """
-        obj = Object(object_dict, bucket=self._objects)
-        riak_object = obj.save()
+    def obj_create(self, obj, **kwargs):
+        obj = Object(obj, backend=self)
+        obj_dict = obj.save()
 
-        return riak_object.get_data()
+        return obj_dict
 
-    def create_activity(self, actstream_dict):
+    def obj_update(self, obj, **kwargs):
+        self.obj_create(obj, **kwargs)
+
+    def obj_get(self, obj, **kwargs):
+        """
+        Given a list of object ids, returns a list of objects
+        """
+        if not obj:
+            return obj
+        object_bucket_name = self._objects.get_name()
+        objects = self._riak_backend
+
+        for object_id in obj:
+            objects = objects.add(object_bucket_name, str(object_id))
+
+        results = objects.map("Riak.mapValuesJson").reduce(JS_REDUCE_OBJS).run()
+        return results or []
+
+    def activity_create(self, activity, **kwargs):
         """
         Creates an activity. You can provide objects for activities as dictionaries or as ids for already
-        existing objects. If you provide a dictionary for an object, it is saved as a new object. If you provide
-        an object id and the object does not exist, it is saved anyway, and returned as an empty dictionary when
-        retriving the activity.
+        existing objects.
+
+        If you provide a dictionary for an object, it is saved as a new object.
+
+        If you provide an object id and the object does not exist, it is saved anyway, and returned as an empty
+        dictionary when retriving the activity later.
         """
-        activity_obj = Activity(actstream_dict, bucket=self._activities, objects_bucket=self._objects)
-        riak_object = activity_obj.save()
+        activity_obj = Activity(activity, backend=self)
+        activity_dict = activity_obj.save()
 
-        return self.dehydrate_activities([riak_object.get_data()])[0]
+        return self.dehydrate_activities([activity_dict])[0]
 
-    def create_reply(self, activity_id, actor, content, extra={}, **kwargs):
-        """
-        Creates a ``reply`` for an activity.
-
-        :type activity_id: int
-        :param activity_id: The id of the activity we want to create a reply for
-        """
-        activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
-        activity.get(key=activity_id)
-
-        reply_activity, activity = activity.create_reply(actor, content, extra=extra)
-        dehydrated_activities = self.dehydrate_activities([reply_activity.get_data(), activity.get_data()])
-        return dehydrated_activities[0], dehydrated_activities[1]
-
-    def create_like(self, activity_id, actor, content="", extra={}, **kwargs):
-        """
-        Creates a ``like`` for an activity.
-
-        :type activity_id: string
-        :param activity_id: The id of the activity we want to create a reply for
-        """
-        activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
-        activity.get(key=activity_id)
-
-        like_activity, activity = activity.create_like(actor, content, extra=extra)
-        dehydrated_activities = self.dehydrate_activities([like_activity.get_data(), activity.get_data()])
-        return dehydrated_activities[0], dehydrated_activities[1]
-
-    def delete(self, activity_id):
+    def activity_delete(self, activity):
         """
         Deletes an activity item and all associated sub items
-
-        :type activity_id: string
-        :param activity_id: The id of the activity we want to create a reply for
         """
-        activity = Activity({}, bucket=self._activities, objects_bucket=self._objects)
-        activity.get(key=activity_id)
+        activity = Activity({}, backend=self)
+        activity.get(key=self._extract_id(activity))
         activity.delete()
 
-    def delete_reply(self, reply_id):
-        """
-        Deletes a ``reply`` made on an activity. This will also update the corresponding activity.
+    def activity_update(self, activity, **kwargs):
+        return self.activity_create(activity, **kwargs)
 
-        :type reply_id: string
-        :param reply_id: the id of the reply activity to delete.
-        """
-        reply = ReplyActivity({}, bucket=self._activities, objects_bucket=self._objects)
-        riak_object = reply.delete(key=reply_id)
-        return self.dehydrate_activities([riak_object.get_data()])[0]
-
-    def delete_like(self, like_id):
-        """
-        Deletes a ``like`` made on an activity. This will also update the corresponding activity.
-
-        :type like_id: string
-        :param like_id: the id of the like activity to delete.
-        """
-        like = LikeActivity({}, bucket=self._activities, objects_bucket=self._objects)
-        riak_object = like.delete(key=like_id)
-        return self.dehydrate_activities([riak_object.get_data()])[0]
-
-    def get_objects(self, object_ids=[]):
-        """
-        Gets a list of objects.
-
-        :type object_ids: list
-        :param object_ids: a list of objects
-        """
-        return self._get_many_objects(object_ids)
-
-    def get_activities(self, activity_ids=[], raw_filter="", filters={}, include_public=False, \
-        audience_targeting={}, aggregation_pipeline=[]):
+    def activity_get(self, activity_ids=[], raw_filter="", filters={}, include_public=False, \
+        audience_targeting={}, aggregation_pipeline=[], **kwargs):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
         by.
@@ -495,6 +510,50 @@ class RiakBackend(BaseBackend):
         for aggregator in aggregation_pipeline:
             activities = aggregator.process(activities, original_activities, aggregation_pipeline)
         return activities
+
+    def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="",
+        sub_activity_attribute="", **kwargs):
+        if sub_activity_verb.lower() not in SUB_ACTIVITY_MAP:
+            raise Exception('Verb not supported')
+        return super(RiakBackend, self).create_sub_activity(activity, actor, content, extra,\
+            sub_activity_verb, sub_activity_attribute, **kwargs)
+
+    def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="",
+        sub_activity_attribute="", **kwargs):
+        sub_activity_model = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][0]
+        object_type = kwargs.get('object_type', sub_activity_verb)
+
+        activity_id = self._extract_id(activity)
+        activity_model = Activity({}, backend=self)
+        activity_model.get(key=activity_id)
+
+        sub_activity_obj, original_activity_obj = activity_model\
+            .create_sub_activity(actor=actor, content=content, verb=sub_activity_verb,\
+                object_type=object_type, collection=sub_activity_attribute,\
+                activity_class=sub_activity_model, extra=extra)
+
+        dehydrated_activities = self.dehydrate_activities([sub_activity_obj.get_data(), \
+            original_activity_obj.get_data()])
+        return dehydrated_activities[0], dehydrated_activities[1]
+
+    def sub_activity_delete(self, sub_activity, sub_activity_verb, **kwargs):
+        """
+        Deletes a sub_activity made on an activity. This will also update the corresponding
+        parent activity.
+
+        :type sub_activity: string
+        :param sub_activity: the id of the reply activity to delete.
+        :type sub_activity_verb: string
+        :param sub_activity_verb: the verb of the sub activity
+
+        :return: a dict representing the updated parent activity
+        """
+        sub_activity_model = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][0]
+        sub_activity_id = self._extract_id(sub_activity)
+
+        sub_activity_obj = sub_activity_model({}, backend=self)
+        riak_object = sub_activity_obj.delete(key=sub_activity_id)
+        return self.dehydrate_activities([riak_object.get_data()])[0]
 
     def dehydrate_activities(self, activities):
         """
@@ -663,21 +722,6 @@ class RiakBackend(BaseBackend):
                     for i, item in enumerate(activity[collection]['items']):
                         activity[collection]['items'][i] = self._dehydrate_object_keys(item, objects_dict)
         return activity
-
-    def _get_many_objects(self, object_ids):
-        """
-        Given a list of object ids, returns a list of objects
-        """
-        if not object_ids:
-            return object_ids
-        object_bucket_name = self._objects.get_name()
-        objects = self._riak_backend
-
-        for object_id in object_ids:
-            objects = objects.add(object_bucket_name, str(object_id))
-
-        results = objects.map("Riak.mapValuesJson").reduce(JS_REDUCE_OBJS).run()
-        return results or []
 
     def _get_many_activities(self, activity_ids=[], raw_filter="", filters={}, include_public=False, audience_targeting={}):
         """

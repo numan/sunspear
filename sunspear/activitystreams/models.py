@@ -288,15 +288,15 @@ class Activity(Model):
             raise SunspearValidationException("Object with ID already exists")
 
     def create_reply(self, actor, content, extra={}):
-        return self._create_activity_subitem(actor, content=content, verb="reply", \
-            objectType="reply", collection="replies", activityClass=ReplyActivity, extra=extra)
+        return self.create_sub_activity(actor, content=content, verb="reply", \
+            object_type="reply", collection="replies", activity_class=ReplyActivity, extra=extra)
 
     def create_like(self, actor, content="", extra={}):
-        return self._create_activity_subitem(actor, content=content, verb="like", objectType="like", \
-            collection="likes", activityClass=LikeActivity, extra=extra)
+        return self.create_sub_activity(actor, content=content, verb="like", object_type="like", \
+            collection="likes", activity_class=LikeActivity, extra=extra)
 
-    def _create_activity_subitem(self, actor, content="", verb="reply", objectType="reply", \
-        collection="replies", activityClass=None, extra={}):
+    def create_sub_activity(self, actor, content="", verb="reply", object_type="reply", \
+        collection="replies", activity_class=None, extra={}, **kwargs):
 
         in_reply_to_dict = {
             'objectType': 'activity',
@@ -305,7 +305,7 @@ class Activity(Model):
             'published': self._dict['published']
         }
         reply_obj = {
-            'objectType': objectType,
+            'objectType': object_type,
             'id': self._get_new_uuid(),
             'published': datetime.datetime.utcnow(),
             'content': content,
@@ -325,7 +325,7 @@ class Activity(Model):
             extra.update(reply_dict)
             reply_dict = extra
 
-        _activity = activityClass(reply_dict, activity_id=self._dict['id'], bucket=self._bucket, objects_bucket=self._objects_bucket)
+        _activity = activity_class(reply_dict, activity_id=self._dict['id'], bucket=self._bucket, objects_bucket=self._objects_bucket)
         _activity.save()
 
         _activity_data = _activity.get_riak_object().get_data()
