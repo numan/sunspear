@@ -22,117 +22,13 @@ from nydus.db import create_cluster
 
 from riak import RiakPbcTransport
 
-import uuid
 import copy
 
-JS_MAP = """
-    function(value, keyData, arg) {
-      if (value["not_found"]) {
-        return [value];
-      }
-      var newValues = Riak.mapValues(value, keyData, arg);
-      newValues = newValues.map(function(nv) {
-        try {
-            var parsedNv = JSON.parse(nv); parsedNv["timestamp"] = value.values[0].metadata.index.timestamp_int; return parsedNv;
-        } catch(e) {
-            return;
-        }
-      });
-      //filter out undefinded things
-      return newValues.filter(function(value){ return value; });
-    }
-"""
 
-JS_REDUCE_FILTER_PROP = """
-    function(value, arg) {
-        if (arg['raw_filter'] != "") {
-            raw_filter = eval(arg['raw_filter']);
-            return value.filter(raw_filter);
-        }
-        return value.filter(function(obj){
-            for (var filter in arg['filters']){
-                if (filter in obj) {
-                    for(var i in arg['filters'][filter]) {
-                        if (obj[filter] == arg['filters'][filter][i]) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        });
-    }
-"""
+class SunspearClient(object):
+    def __init__(self, backend, **kwargs):
 
-JS_REDUCE_FILTER_AUD_TARGETTING = """
-    function(value, arg) {
-        var audience_targeting = ['to', 'bto', 'cc', 'bcc'];
-        return value.filter(function(obj){
-            if (arg['public'] && audience_targeting.reduce(function(prev, next){ return prev && !(next in obj) }, true)) {
-                return true;
-            }
-            for (var i in audience_targeting){
-                var targeting_field = audience_targeting[i];
-                if (targeting_field in obj && targeting_field in arg['filters']) {
-                    for(var j in arg['filters'][targeting_field]) {
-                        return obj[targeting_field].indexOf(arg['filters'][targeting_field][j]) != -1;
-                    }
-                }
-            }
-            return false;
-        });
-    }
-"""
-
-JS_REDUCE = """
-    function(value, arg) {
-      var sortFunc = function(x,y) {
-        if(x["timestamp"] == y["timestamp"]) return 0;
-        return x["timestamp"] > y["timestamp"] ? 1 : -1;
-      }
-      var newValues = Riak.filterNotFound(value);
-      return newValues.sort(sortFunc);
-    }
-"""
-
-JS_REDUCE_OBJS = """
-    function(value, arg) {
-      return Riak.filterNotFound(value);
-    }
-"""
-
-
-class BaseBackend(object):
-    def clear_all_objects(self):
-        raise NotImplemented()
-
-    def clear_all_activities(self):
-        raise NotImplemented()
-
-
-class RiakBackend(BaseBackend):
-    def __init__(self, host_list=[], defaults={}, **kwargs):
-
-        sunspear_defaults = {
-         'transport_options': {"max_attempts": 4},
-         'transport_class': RiakPbcTransport,
-        }
-
-        sunspear_defaults.update(defaults)
-
-        hosts = {}
-        for i, host_settings in enumerate(host_list):
-            hosts[i] = host_settings
-
-        self._riak_backend = create_cluster({
-            'engine': 'nydus.db.backends.riak.Riak',
-            'defaults': sunspear_defaults,
-            'router': 'nydus.db.routers.keyvalue.PartitionRouter',
-            'hosts': hosts,
-        })
-
-        self._objects = self._riak_backend.bucket("objects")
-        self._activities = self._riak_backend.bucket("activities")
+        self._backend = backend
 
     def clear_all(self):
         """
@@ -454,66 +350,8 @@ class RiakBackend(BaseBackend):
                         activity[collection]['items'][i] = self._dehydrate_object_keys(item, objects_dict)
         return activity
 
-    def _get_many_objects(self, object_ids):
-        """
-        Given a list of object ids, returns a list of objects
-        """
-        if not object_ids:
-            return object_ids
-        object_bucket_name = self._objects.get_name()
-        objects = self._riak_backend
+    def get_backend(self):
+        return self.backend
 
-        for object_id in object_ids:
-            objects = objects.add(object_bucket_name, str(object_id))
-
-        results = objects.map("Riak.mapValuesJson").reduce(JS_REDUCE_OBJS).run()
-        return results or []
-
-    def _get_many_activities(self, activity_ids=[], raw_filter="", filters={}, include_public=False, audience_targeting={}):
-        """
-        Given a list of activity ids, returns a list of activities from riak.
-
-        :type activity_ids: list
-        :param activity_ids: The list of activities you want to retrieve
-        :type raw_filter: string
-        :param raw_filter: allows you to specify a javascript function as a string. The function should return ``true`` if the activity should be included in the result set
-        or ``false`` it shouldn't. If you specify a raw filter, the filters specified in ``filters`` will not run. How ever, the results will still be filtered based on
-        the ``audience_targeting`` parameter.
-        :type filters: dict
-        :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
-        Filters do not work for nested dictionaries.
-        :type include_public: boolean
-        :param include_public: If ``True``, and the ``audience_targeting`` dictionary is defined, activities that are
-        not targeted towards anyone are included in the results
-        :type audience_targeting: dict
-        :param audience_targeting: Filters the list of activities targeted towards a particular audience. The key for the dictionary is one of ``to``, ``cc``, ``bto``, or ``bcc``.
-        """
-        activity_bucket_name = self._activities.get_name()
-        activities = self._riak_backend
-
-        for activity_id in activity_ids:
-            activities = activities.add(activity_bucket_name, str(activity_id))
-
-        results = activities.map(JS_MAP)
-
-        if audience_targeting:
-            results = results.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'public': include_public, 'filters': audience_targeting}})
-
-        if filters or raw_filter:
-            results = results.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'raw_filter': raw_filter, 'filters': filters}})
-
-        results = results.reduce(JS_REDUCE).run()
-        results = results or []
-
-        #riak does not return the results in any particular order (unless we sort). So,
-        #we have to put the objects returned by riak back in order
-        results_map = dict(map(lambda result: (result['id'], result,), results))
-        reordered_results = [results_map[id] for id in activity_ids if id in results_map]
-
-        return reordered_results
-
-    def _get_new_uuid(self):
-        return uuid.uuid1().hex
-
-    def _get_riak_client(self):
-        return self._riak_backend
+    def get_client(self):
+        return self
