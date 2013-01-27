@@ -4,7 +4,7 @@ from sunspear.lib.rfc3339 import rfc3339
 
 from dateutil.parser import parse
 
-import uuid
+import time
 import datetime
 
 
@@ -118,8 +118,14 @@ class Model(object):
             dt = date
         return rfc3339(dt, utc=utc, use_system_timezone=use_system_timezone)
 
-    def _get_new_uuid(self):
-        return uuid.uuid1().hex
+    def get_new_id(self):
+        """
+        Generates a new unique ID. The default implementation uses uuid1 to
+        generate a unique ID.
+
+        :return: a new id
+        """
+        return str(long(round((time.time() * 10000) - (time.mktime(datetime.datetime(month=1, day=1, year=2013).timetuple()) * 10000))))
 
     def __getitem__(self, key):
         return self._dict[key]
@@ -136,7 +142,7 @@ class Activity(Model):
     def _set_defaults(self, model_dict):
         model_dict = super(Activity, self)._set_defaults(model_dict)
         if "id" not in model_dict or not model_dict["id"]:
-            model_dict["id"] = self._get_new_uuid()
+            model_dict["id"] = self.get_new_id()
 
         if 'replies' not in model_dict:
             model_dict['replies'] = {'totalItems': 0, 'items': []}
@@ -157,7 +163,7 @@ class Activity(Model):
         }
         reply_obj = {
             'objectType': object_type,
-            'id': self._get_new_uuid(),
+            'id': self.get_new_id(),
             'published': datetime.datetime.utcnow(),
             'content': content,
             'inReplyTo': [in_reply_to_dict],

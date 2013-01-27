@@ -1228,3 +1228,67 @@ class TestIndexes(object):
 
         ok_(riak_obj.get_indexes('timestamp_int') != [])
         ok_(riak_obj.get_indexes('modified_int') != [])
+
+    def test_create_activity_indexes(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        act_obj = self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+        act_obj_dict = act_obj
+
+        riak_obj = self._backend._activities.get(key=act_obj_dict['id'])
+        riak_obj.get_data()
+
+        ok_(riak_obj.get_indexes('timestamp_int') != [])
+        ok_(riak_obj.get_indexes('modified_int') != [])
+        eq_(riak_obj.get_indexes('verb_bin'), ['post'])
+        eq_(riak_obj.get_indexes('actor_bin'), [actor_id])
+        eq_(riak_obj.get_indexes('object_bin'), [object_id])
+
+
+    def test_create_sub_activity_indexes(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '4321'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor2_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        actor2 = {"objectType": "something", "id": actor2_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        self._backend.create_obj(actor2)
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, "",\
+            sub_activity_verb='like')
+
+        riak_obj = self._backend._activities.get(key=like_activity_dict['id'])
+        riak_obj.get_data()
+
+        ok_(riak_obj.get_indexes('timestamp_int') != [])
+        ok_(riak_obj.get_indexes('modified_int') != [])
+        eq_(riak_obj.get_indexes('verb_bin'), ['like'])
+        eq_(riak_obj.get_indexes('actor_bin'), [actor2_id])
+        eq_(riak_obj.get_indexes('object_bin'), [like_activity_dict['object']['id']])
+        eq_(riak_obj.get_indexes('inreplyto_bin'), ['5'])
+
