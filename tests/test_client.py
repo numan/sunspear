@@ -3,8 +3,8 @@ from __future__ import absolute_import
 from nose.tools import ok_, eq_, set_trace
 
 from sunspear.aggregators.property import PropertyAggregator
-from sunspear.backends import RiakBackend
-from sunspear.exceptions import SunspearValidationException, SunspearNotFoundException
+from sunspear.backends.riak import RiakBackend
+from sunspear.backends.client import SunspearClient
 
 import datetime
 
@@ -17,7 +17,7 @@ riak_connection_options = {
 class TestRiakBackend(object):
     def setUp(self):
         self._backend = RiakBackend(**riak_connection_options)
-        self._riak_client = self._backend._get_riak_client()
+        self._riak_client = SunspearClient(self._backend)
 
     def test_create_object(self):
         self._backend._objects.get('1234').delete()

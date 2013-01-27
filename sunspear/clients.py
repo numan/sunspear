@@ -16,15 +16,6 @@ specific language governing permissions and limitations
 under the License.
 """
 
-from sunspear.activitystreams.models import Object, Activity, Model, ReplyActivity, LikeActivity
-
-from nydus.db import create_cluster
-
-from riak import RiakPbcTransport
-
-import copy
-
-
 class SunspearClient(object):
     def __init__(self, backend, **kwargs):
 
