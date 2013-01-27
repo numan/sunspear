@@ -19,10 +19,8 @@ class Model(object):
     _direct_audience_targeting_fields = []
     _indirect_audience_targeting_fields = []
 
-    def __init__(self, object_dict, bucket=None, riak_object=None, *args, **kwargs):
-        self._riak_object = riak_object
-        self._bucket = bucket
-        self._dict = self._set_defaults(self.objectify_dict(object_dict))
+    def __init__(self, object_dict, *args, **kwargs):
+        self._dict = self._set_defaults(object_dict)
 
     def _set_defaults(self, model_dict):
         """
@@ -34,21 +32,6 @@ class Model(object):
         if 'id' in model_dict:
             model_dict['id'] = str(model_dict['id'])
         return model_dict
-
-    def objectify_dict(self, object_dict):
-        _dict = {}
-        for key, value in object_dict.iteritems():
-            if key in self._media_fields and isinstance(value, dict):
-                _dict[key] = MediaLink(value)
-            elif key in self._object_fields and key not in self._response_fields and isinstance(value, dict):
-                _dict[key] = Object(value)
-            elif key in self._direct_audience_targeting_fields:
-                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in value]
-            elif key in self._indirect_audience_targeting_fields:
-                _dict[key] = [Object(target_obj) if isinstance(target_obj, dict) else target_obj for target_obj in value]
-            else:
-                _dict[key] = value
-        return _dict
 
     def validate(self):
         for field in self._required_fields:
@@ -106,32 +89,7 @@ class Model(object):
 
         return _parsed_data
 
-    def set_indexes(self, riak_object):
-        """
-        Sets the default riak 2Is.
-
-        :type riak_object: RiakObject
-        :param riak_object: a RiakObject representing the model of  the class
-        """
-        if not riak_object.get_indexes('timestamp_int'):
-            riak_object.add_index("timestamp_int", self._get_timestamp())
-        else:
-            riak_object.remove_index('modified_int')
-            riak_object.add_index("modified_int", self._get_timestamp())
-        return riak_object
-
-    def save(self, *args, **kwargs):
-        if self._bucket is None:
-            raise SunspearInvalidConfigurationError("You must pass a riak bucket in the constructor.")
-
-        if self._riak_object is None:
-            _riak_object = self._bucket.new(key=self._dict["id"])
-            self._riak_object = _riak_object
-        else:
-            _riak_object = self._riak_object
-
-        self.validate()
-        self.riak_validate(*args, **kwargs)
+    def get_parsed_dict(self, *args, **kwargs):
 
         #we are suppose to maintain our own published and updated fields
         if not self._dict.get('published', None):
@@ -141,36 +99,10 @@ class Model(object):
 
         parsed_data = self.parse_data(self._dict, *args, **kwargs)
 
-        _riak_object.set_data(parsed_data)
-        _riak_object = self.set_indexes(_riak_object)
-
-        _riak_object.store()
-        return _riak_object
-
-    def set_bucket(self, bucket):
-        self._bucket = bucket
-
-    def get(self, key=None):
-        #TODO need tests for this
-        if key is None and id is None:
-            raise SunspearValidationException("You must provide either ``key`` or ``id`` to get an object.")
-
-        key = str(key)
-
-        riak_obj = self._bucket.get(key)
-        if not riak_obj.exists():
-            raise SunspearNotFoundException("Could not find the object by ``key`` or ``id`")
-        self._riak_object = riak_obj
-        self._dict = self._set_defaults(self.objectify_dict(self._riak_object.get_data()))
-
-    def get_riak_object(self):
-        return self._riak_object
+        return parsed_data
 
     def get_dict(self):
         return self._dict
-
-    def riak_validate(self):
-        return True
 
     def _parse_date(self, date=None, utc=True, use_system_timezone=False):
         dt = None
@@ -205,13 +137,6 @@ class Activity(Model):
     _direct_audience_targeting_fields = ['to', 'bto']
     _indirect_audience_targeting_fields = ['cc', 'bcc']
 
-    def __init__(self, object_dict, *args, **kwargs):
-        if 'objects_bucket' not in kwargs:
-            raise SunspearInvalidConfigurationError("Riak bucket for ``Object`` not passed.")
-        self._objects_bucket = kwargs['objects_bucket']
-
-        super(Activity, self).__init__(object_dict, *args, **kwargs)
-
     def _set_defaults(self, model_dict):
         model_dict = super(Activity, self)._set_defaults(model_dict)
         if "id" not in model_dict or not model_dict["id"]:
@@ -225,77 +150,7 @@ class Activity(Model):
 
         return model_dict
 
-    def save(self, *args, **kwargs):
-        return_val = None
-        #if things in the object field seem like they are new
-        objs_created = []
-        objs_modified = []
-        for key, value in self._dict.items():
-            if key in self._object_fields and isinstance(value, Object):
-                previous_value = Object(value.get_dict(), bucket=self._objects_bucket)
-                try:
-                    previous_value.get(previous_value.get_dict().get('id'))
-                except:
-                    previous_value = None
-
-                value.set_bucket(self._objects_bucket)
-                try:
-                    if previous_value:
-                        objs_modified.append(previous_value)
-                        value.save()
-                    else:
-                        value.save()
-                        objs_created.append(value)
-                except Exception:
-                    self._rollback(objs_created, objs_modified)
-                    raise
-                    # raise SunspearRiakException('There was an error creating the objects for this activity.')
-                self._dict[key] = value.get_dict()["id"]
-            if key in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields\
-                and value:
-                for i, target_obj in enumerate(value):
-                    if isinstance(target_obj, Object):
-                        previous_value = Object(target_obj.get_dict(), bucket=self._objects_bucket)
-                        try:
-                            previous_value.get(previous_value.get_dict().get('id'))
-                        except:
-                            previous_value = None
-
-                        target_obj.set_bucket(self._objects_bucket)
-                        try:
-                            if previous_value:
-                                objs_modified.append(previous_value)
-                                target_obj.save()
-                            else:
-                                target_obj.save()
-                                objs_created.append(value)
-                        except Exception:
-                            self._rollback(objs_created, objs_modified)
-                            raise
-                        self._dict[key][i] = target_obj.get_dict()["id"]
-
-        try:
-            return_val = super(Activity, self).save(*args, **kwargs)
-        except Exception:
-            self._rollback(objs_created, objs_modified)
-            raise
-
-        return return_val
-
-    def riak_validate(self, update=False, *args, **kwargs):
-        #TODO Need tests for this
-        if not update and self._bucket.get(self._dict["id"]).exists():
-            raise SunspearValidationException("Object with ID already exists")
-
-    def create_reply(self, actor, content, extra={}):
-        return self.create_sub_activity(actor, content=content, verb="reply", \
-            object_type="reply", collection="replies", activity_class=ReplyActivity, extra=extra)
-
-    def create_like(self, actor, content="", extra={}):
-        return self.create_sub_activity(actor, content=content, verb="like", object_type="like", \
-            collection="likes", activity_class=LikeActivity, extra=extra)
-
-    def create_sub_activity(self, actor, content="", verb="reply", object_type="reply", \
+    def get_parsed_sub_activity_dict(self, actor, content="", verb="reply", object_type="reply", \
         collection="replies", activity_class=None, extra={}, **kwargs):
 
         in_reply_to_dict = {
@@ -325,19 +180,16 @@ class Activity(Model):
             extra.update(reply_dict)
             reply_dict = extra
 
-        _activity = activity_class(reply_dict, activity_id=self._dict['id'], bucket=self._bucket, objects_bucket=self._objects_bucket)
-        _activity.save()
-
-        _activity_data = _activity.get_riak_object().get_data()
+        _activity = reply_dict
 
         _sub_dict = {
-            'actor': _activity_data['actor'],
+            # 'actor': _activity_data['actor'],
             'verb': verb,
-            'id': _activity_data['id'],
-            'published': _activity_data['published'],
+            # 'id': _activity_data['id'],
+            # 'published': _activity_data['published'],
             'object': {
                 'objectType': 'activity',
-                'id': _activity_data['id'],
+                # 'id': _activity_data['id'],
             }
         }
 
@@ -345,30 +197,9 @@ class Activity(Model):
         #insert the newest comment at the top of the list
         self._dict[collection]['items'].insert(0, _sub_dict)
 
-        self.save(update=True)
+        parent_activity = self.parse_data(self._dict, **kwargs)
 
-        return _activity._riak_object, self._riak_object
-
-    def set_indexes(self, riak_object):
-        """
-        Store indexes specific to an ``Activity``. Stores the following indexes:
-        1. ``verb`` of the ``Activity``
-        2. ``actor`` of the ``Activity``
-        3. ``object`` of the ``Activity``
-        4. if target is defined, verb for the ``target`` of the Activity
-
-        :type riak_object: RiakObject
-        :param riak_object: a RiakObject representing the model of  the class
-        """
-        super(Activity, self).set_indexes(riak_object)
-
-        riak_object.add_index("verb_bin", str(self._dict['verb']))
-        riak_object.add_index("actor_bin", str(self._dict['actor']))
-        riak_object.add_index("object_bin", str(self._dict['object']))
-        if 'target' in self._dict and self._dict.get("target"):
-            riak_object.add_index("target_bin", str(self._dict['target']))
-
-        return riak_object
+        return _activity, parent_activity
 
     def parse_data(self, data, *args, **kwargs):
         #TODO Rename to jsonify_dict
@@ -382,20 +213,6 @@ class Activity(Model):
                         _parsed_data[response_field]['items'][i] = super(Activity, self).parse_data(comment, *args, **kwargs)
 
         return _parsed_data
-
-    def delete(self):
-        """
-        Deletes an activity item and all associated response items.
-        """
-        for response_field in self._response_fields:
-            if response_field in self._dict:
-                for response_item in self._dict[response_field]['items']:
-                    self._bucket.get(response_item['id']).delete()
-        self.get_riak_object().delete()
-
-    def _rollback(self, new_objects, modified_objects):
-        [obj_created.get_riak_object().delete() for obj_created in new_objects]
-        [obj_modified.get_riak_object().store() for obj_modified in modified_objects]
 
 
 class SubItemMixin(object):
@@ -423,21 +240,6 @@ class SubItemMixin(object):
         riak_object = super(SubItemMixin, self).set_indexes(riak_object)
 
         return riak_object
-
-    def delete(self, key=None):
-        self.get(key=key)
-        if self._dict['verb'] != self.sub_item_verb:
-            raise SunspearValidationException("Trying to delete something that is not a %s." % self.sub_item_verb)
-
-        #clean up the reference from the original activity
-        activity = Activity({}, bucket=self._bucket, objects_bucket=self._objects_bucket)
-        activity.get(key=self.get_riak_object().get_indexes('inreplyto_bin')[0])
-        activity._dict[self.sub_item_key]['totalItems'] -= 1
-        activity._dict[self.sub_item_key]['items'] = filter(lambda x: x["id"] != key, activity._dict[self.sub_item_key]['items'])
-
-        self.get_riak_object().delete()
-        activity.save(update=True)
-        return activity.get_riak_object()
 
 
 class ReplyActivity(SubItemMixin, Activity):

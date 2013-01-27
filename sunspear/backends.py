@@ -18,7 +18,7 @@ under the License.
 
 from sunspear.activitystreams.models import Object, Activity, Model, ReplyActivity, LikeActivity
 from sunspear.exceptions import (SunspearDuplicateEntryException, SunspearInvalidActivityException,
-    SunspearInvalidObjectException)
+    SunspearInvalidObjectException, SunspearValidationException)
 
 from nydus.db import create_cluster
 
@@ -111,6 +111,28 @@ class BaseBackend(object):
     def clear_all_activities(self):
         raise NotImplementedError()
 
+    def obj_exists(self, obj, **kwargs):
+        """
+        Determins if an ``object`` already exists in the backend.
+
+        :type obj: dict
+        :param obj: the activity we want to determin if it exists
+
+        :return: ``True`` if the ``object`` exists, otherwise ``False``
+        """
+        raise NotImplementedError()
+
+    def activity_exists(self, activity, **kwargs):
+        """
+        Determins if an ``activity`` already exists in the backend.
+
+        :type activity: dict
+        :param activity: the activity we want to determin if it exists
+
+        :return: ``True`` if the ``activity`` exists, otherwise ``False``
+        """
+        raise NotImplementedError()
+
     #TODO: Tests
     def create_activity(self, activity, **kwargs):
         """
@@ -132,7 +154,61 @@ class BaseBackend(object):
         else:
             activity['id'] = self.get_new_id()
 
-        return self.save(activity, **kwargs)
+        objs_created = []
+        objs_modified = []
+        for key, value in activity:
+            if key in Activity._object_fields and isinstance(value, dict):
+                if self.obj_exists(value):
+                    previous_value = self.get_obj([self._extract_id(value)])[0]
+                else:
+                    previous_value = None
+
+                try:
+                    if previous_value:
+                        objs_modified.append(previous_value)
+                        self.update_obj(value)
+                    else:
+                        new_obj = self.create_obj(value)
+                        objs_created.append(new_obj)
+                except Exception:
+                    #there was an error, undo everything we just did
+                    self._rollback(objs_created, objs_modified)
+                    raise
+
+                activity[key] = value.get_dict()["id"]
+
+            if key in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields\
+                and value:
+                for i, target_obj in enumerate(value):
+                    if isinstance(target_obj, dict):
+                        previous_value = Object(target_obj.get_dict(), bucket=self._objects_bucket)
+                        if self.obj_exists(target_obj):
+                            previous_value = self.get_obj(target_obj)
+                        else:
+                            previous_value = None
+
+                        try:
+                            if previous_value:
+                                objs_modified.append(previous_value)
+                                self.update_obj(target_obj, **kwargs)
+                            else:
+                                new_obj = self.create_obj(target_obj)
+                                objs_created.append(new_obj)
+                        except Exception:
+                            self._rollback(objs_created, objs_modified)
+                            raise
+                        activity[key][i] = target_obj.get_dict()["id"]
+
+        try:
+            return_val = self.activity_create(activity, **kwargs)
+        except Exception:
+            self._rollback(objs_created, objs_modified)
+            raise
+
+        return return_val
+
+    def _rollback(self, new_objects, modified_objects):
+        [self.delete_obj(obj) for obj in (new_objects + modified_objects)]
 
     def activity_create(self, activity, **kwargs):
         """
@@ -178,23 +254,23 @@ class BaseBackend(object):
         if not activity_id:
             raise SunspearInvalidActivityException()
 
-        return self.delete(activity, **kwargs)
+        return self.activity_delete(activity, **kwargs)
 
     def activity_delete(self, activity, **kwargs):
         raise NotImplementedError()
 
-    def get_activity(self, obj, **kwargs):
+    def get_activity(self, activity, **kwargs):
         """
-        Gets an obj or a list of activities from the backend.
+        Gets an activity or a list of activities from the backend.
 
-        :type obj: list
-        :param obj: a list of ids of activities that will be retrieved from
+        :type activity: list
+        :param activity: a list of ids of activities that will be retrieved from
             the backend.
 
-        :return: a list of activities. If an obj is not found, a partial list should
+        :return: a list of activities. If an activity is not found, a partial list should
             be returned.
         """
-        return self.activity_get(self._listify(obj), **kwargs)
+        return self.activity_get(self._listify(activity), **kwargs)
 
     def activity_get(self, activity, **kwargs):
         raise NotImplementedError()
@@ -213,7 +289,7 @@ class BaseBackend(object):
         """
         obj_id = self._extract_id(obj)
         if obj_id:
-            existing_obj = self.get_obj(obj_id)
+            existing_obj = self.obj_exists(obj, **kwargs)
             if existing_obj:
                 raise SunspearDuplicateEntryException()
         else:
@@ -424,11 +500,43 @@ class RiakBackend(BaseBackend):
             self._activities.get(key).delete(rw='all', r='all', w='all', dw='all')
             assert not self._activities.get(key).exists()
 
+    def obj_exists(self, obj, **kwargs):
+        obj_id = self._extract_id(obj)
+        return self._objects.get(obj_id).exists()
+
+    def activity_exists(self, activity, **kwargs):
+        activity_id = self._extract_id(activity)
+        return self._activities.get(activity_id).exists()
+
     def obj_create(self, obj, **kwargs):
         obj = Object(obj, backend=self)
-        obj_dict = obj.save()
 
+        obj.validate()
+        obj_dict = obj.get_parsed_dict()
+
+        key = obj._extract_id(obj_dict)
+
+        riak_obj = self._objects.new(key=key)
+        riak_obj = self.set_general_indexes(riak_obj)
+
+        riak_obj.store()
+
+        #finally save the data
         return obj_dict
+
+    def set_general_indexes(self, riak_object):
+        """
+        Sets the default riak 2Is.
+
+        :type riak_object: RiakObject
+        :param riak_object: a RiakObject representing the model of  the class
+        """
+        if not riak_object.get_indexes('timestamp_int'):
+            riak_object.add_index("timestamp_int", self._get_timestamp())
+        else:
+            riak_object.remove_index('modified_int')
+            riak_object.add_index("modified_int", self._get_timestamp())
+        return riak_object
 
     def obj_update(self, obj, **kwargs):
         self.obj_create(obj, **kwargs)
@@ -458,18 +566,53 @@ class RiakBackend(BaseBackend):
         If you provide an object id and the object does not exist, it is saved anyway, and returned as an empty
         dictionary when retriving the activity later.
         """
-        activity_obj = Activity(activity, backend=self)
-        activity_dict = activity_obj.save()
+        activity = Activity(activity)
 
-        return self.dehydrate_activities([activity_dict])[0]
+        activity.validate()
+        activity_dict = activity.get_parsed_dict()
 
-    def activity_delete(self, activity):
+        key = activity._extract_id(activity_dict)
+
+        riak_obj = self._activities.new(key=key)
+        riak_obj = self.set_activity_indexes(self.set_general_indexes(riak_obj))
+        if activity_dict['verb'] in SUB_ACTIVITY_MAP:
+            riak_obj = self.set_sub_item_indexes(riak_obj)
+
+        riak_obj.store()
+
+        return self.dehydrate_activities([riak_obj.get_data()])[0]
+
+    def set_activity_indexes(self, riak_object):
+        """
+        Store indexes specific to an ``Activity``. Stores the following indexes:
+        1. ``verb`` of the ``Activity``
+        2. ``actor`` of the ``Activity``
+        3. ``object`` of the ``Activity``
+        4. if target is defined, verb for the ``target`` of the Activity
+
+        :type riak_object: RiakObject
+        :param riak_object: a RiakObject representing the model of  the class
+        """
+        _dict = riak_object.get_data()
+
+        riak_object.add_index("verb_bin", str(_dict['verb']))
+        riak_object.add_index("actor_bin", str(_dict['actor']))
+        riak_object.add_index("object_bin", str(_dict['object']))
+        if 'target' in _dict and _dict.get("target"):
+            riak_object.add_index("target_bin", str(_dict['target']))
+
+        return riak_object
+
+    def activity_delete(self, activity, **kwargs):
         """
         Deletes an activity item and all associated sub items
         """
-        activity = Activity({}, backend=self)
-        activity.get(key=self._extract_id(activity))
-        activity.delete()
+        activity_dict = self.get_activity(activity, **kwargs)
+        for response_field in Activity._response_fields:
+            if response_field in self._dict:
+                for response_item in activity_dict[response_field]['items']:
+                    self._activities.get(response_item['id']).delete()
+        self._activities.get(self._extract_id(activity_dict)).delete()
 
     def activity_update(self, activity, **kwargs):
         return self.activity_create(activity, **kwargs)
@@ -524,16 +667,22 @@ class RiakBackend(BaseBackend):
         object_type = kwargs.get('object_type', sub_activity_verb)
 
         activity_id = self._extract_id(activity)
-        activity_model = Activity({}, backend=self)
-        activity_model.get(key=activity_id)
+        activity_model = Activity(self.activity_get(activity_id)[0])
 
         sub_activity_obj, original_activity_obj = activity_model\
-            .create_sub_activity(actor=actor, content=content, verb=sub_activity_verb,\
+            .get_parsed_sub_activity_dict(actor=actor, content=content, verb=sub_activity_verb,\
                 object_type=object_type, collection=sub_activity_attribute,\
                 activity_class=sub_activity_model, extra=extra)
 
-        dehydrated_activities = self.dehydrate_activities([sub_activity_obj.get_data(), \
-            original_activity_obj.get_data()])
+        sub_activity_obj = self.create_activity(sub_activity_obj)
+        original_activity_obj[sub_activity_attribute]['items'][0]['actor'] = sub_activity_obj['actor']
+        original_activity_obj[sub_activity_attribute]['items'][0]['id'] = sub_activity_obj['id']
+        original_activity_obj[sub_activity_attribute]['items'][0]['published'] = sub_activity_obj['published']
+        original_activity_obj[sub_activity_attribute]['items'][0]['object']['id'] = sub_activity_obj['id']
+        original_activity_obj = self.activity_update(original_activity_obj)
+
+        dehydrated_activities = self.dehydrate_activities([sub_activity_obj, \
+            original_activity_obj])
         return dehydrated_activities[0], dehydrated_activities[1]
 
     def sub_activity_delete(self, sub_activity, sub_activity_verb, **kwargs):
@@ -551,9 +700,36 @@ class RiakBackend(BaseBackend):
         sub_activity_model = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][0]
         sub_activity_id = self._extract_id(sub_activity)
 
-        sub_activity_obj = sub_activity_model({}, backend=self)
-        riak_object = sub_activity_obj.delete(key=sub_activity_id)
-        return self.dehydrate_activities([riak_object.get_data()])[0]
+        sub_activity_riak_model = self._activities.get(sub_activity_id)
+        if sub_activity_riak_model.get_data()['verb'] != sub_activity_model.sub_item_verb:
+            raise SunspearValidationException("Trying to delete something that is not a %s." \
+                % sub_activity_model.sub_item_verb)
+
+        #clean up the reference from the original activity
+        activity = self._activities.get(key=sub_activity_riak_model.get_indexes('inreplyto_bin')[0])
+        activity_data = activity.get_data()
+        activity_data[sub_activity_model.sub_item_key]['totalItems'] -= 1
+        activity_data[sub_activity_model.sub_item_key]['items'] = filter(lambda x: x["id"] != sub_activity_id,\
+            activity_data[sub_activity_model.sub_item_key]['items'])
+
+        activity.set_data(activity_data)
+        activity_data.store()
+
+        self.delete_activity(sub_activity_id)
+        return self.dehydrate_activities([activity_data])[0]
+
+    def set_sub_item_indexes(self, riak_object):
+        """
+        Store indexes specific to a sub-activity. Stores the following indexes:
+        1. id of the the parent ``Activity`` of this sub-activity
+
+        :type riak_object: RiakObject
+        :param riak_object: a RiakObject representing the model of  the class
+        """
+        #TODO: Need tests for this
+        riak_object.add_index("inreplyto_bin", str(self._activity_id))
+
+        return riak_object
 
     def dehydrate_activities(self, activities):
         """
