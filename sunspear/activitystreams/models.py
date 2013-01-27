@@ -6,7 +6,6 @@ from dateutil.parser import parse
 
 import uuid
 import datetime
-import calendar
 
 
 class Model(object):
@@ -39,8 +38,9 @@ class Model(object):
                 raise SunspearValidationException("Required field missing: %s" % field)
 
         for field in self._reserved_fields:
-            if (self._riak_object is None or \
-                not self._riak_object.exists()) and self._dict.get(field, None) is not None:
+            if self._dict.get(field, None) is not None\
+                and field not in ['updated', 'published']:
+                #updated and publised are special eceptions because if they are in reserved fields, the'll be overridden
                 raise SunspearValidationException("Reserved field name used: %s" % field)
 
         for field in self._media_fields:
@@ -117,10 +117,6 @@ class Model(object):
         else:
             dt = date
         return rfc3339(dt, utc=utc, use_system_timezone=use_system_timezone)
-
-    def _get_timestamp(self):
-        now = datetime.datetime.utcnow()
-        return long(str(calendar.timegm(now.timetuple())) + now.strftime("%f"))
 
     def _get_new_uuid(self):
         return uuid.uuid1().hex

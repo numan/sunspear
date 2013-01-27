@@ -18,11 +18,11 @@ class TestActivityModel(object):
             "icon": {'url': "http://example.org/something"}}, objects_bucket=MagicMock())
 
         act_dict = act._dict
-        ok_(isinstance(act_dict['actor'], Object))
-        ok_(isinstance(act_dict['target'], Object))
-        ok_(isinstance(act_dict['object'], Object))
+        ok_(isinstance(act_dict['actor'], dict))
+        ok_(isinstance(act_dict['target'], dict))
+        ok_(isinstance(act_dict['object'], dict))
 
-        ok_(isinstance(act_dict['icon'], MediaLink))
+        ok_(isinstance(act_dict['icon'], dict))
 
         ok_('replies' in act_dict)
         ok_('likes' in act_dict)
@@ -38,14 +38,6 @@ class TestActivityModel(object):
             }, objects_bucket=MagicMock())
 
         act_dict = act._dict
-
-        for key in Activity._direct_audience_targeting_fields:
-            for obj in act_dict[key]:
-                ok_(isinstance(obj, Object))
-
-        for key in Activity._indirect_audience_targeting_fields:
-            for obj in act_dict[key]:
-                ok_(isinstance(obj, Object))
 
         eq_(len(act_dict['to']), 2)
         eq_(len(act_dict['bto']), 3)
@@ -63,9 +55,9 @@ class TestActivityModel(object):
         act_dict = act.parse_data(act._dict)
 
         eq_({
-            'target': {'objectType': 'target', 'id': '4325', 'published': '2012-07-05T12:00:00Z'},
-            'object': {'objectType': 'something', 'id': '4353', 'published': '2012-07-05T12:00:00Z'},
-            'actor': {'objectType': 'actor', 'id': '1232', 'published': '2012-07-05T12:00:00Z'},
+            'target': {'objectType': 'target', 'id': 4325, 'published': '2012-07-05T12:00:00Z'},
+            'object': {'objectType': 'something', 'id': 4353, 'published': '2012-07-05T12:00:00Z'},
+            'actor': {'objectType': 'actor', 'id': 1232, 'published': '2012-07-05T12:00:00Z'},
             'verb': 'post',
             'id': '5',
             'icon': {'url': 'http://example.org/something'}
@@ -173,40 +165,6 @@ class TestActivity(object):
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: bcc")
 
-    def test_set_indexes_not_already_created_set(self):
-        obj = Activity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = []
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('timestamp_int', ANY),
-            call.add_index('verb_bin', ANY),
-            call.add_index('actor_bin', ANY),
-            call.add_index('object_bin', ANY),
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 4)
-
-    def test_set_indexes_already_created(self):
-        obj = Activity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = 123456
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('modified_int', ANY),
-            call.add_index('verb_bin', ANY),
-            call.add_index('actor_bin', ANY),
-            call.add_index('object_bin', ANY),
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 4)
-
 
 class TestMediaLink(object):
     def test_required_fields_all_there(self):
@@ -274,107 +232,3 @@ class TestModelMethods(object):
 
         #no date passed
         ok_(isinstance(obj._parse_date(date=None), basestring))
-
-    def test_set_indexes_not_already_created_set(self):
-        obj = Model({})
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = []
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('timestamp_int', ANY)
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 1)
-
-    def test_set_indexes_already_created(self):
-        obj = Model({})
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = 12343214
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('modified_int', ANY)
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 1)
-
-
-class TestReplyActivityMethods(object):
-    def test_set_indexes_not_already_created_set(self):
-        obj = ReplyActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = []
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('timestamp_int', ANY),
-            call.add_index('inreplyto_bin', ANY),
-            call.add_index('verb_bin', ANY),
-            call.add_index('actor_bin', ANY),
-            call.add_index('object_bin', ANY),
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 5)
-
-    def test_set_indexes_already_created(self):
-        obj = ReplyActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = 12343214
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('modified_int', ANY),
-            call.add_index('inreplyto_bin', ANY),
-            call.add_index('verb_bin', ANY),
-            call.add_index('actor_bin', ANY),
-            call.add_index('object_bin', ANY),
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 5)
-
-
-class TestLikeActivityMethods(object):
-    def test_set_indexes_not_already_created_set(self):
-        obj = LikeActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = []
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('timestamp_int', ANY),
-            call.add_index('inreplyto_bin', ANY),
-            call.add_index('verb_bin', ANY),
-            call.add_index('actor_bin', ANY),
-            call.add_index('object_bin', ANY),
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 5)
-
-    def test_set_indexes_already_created(self):
-        obj = LikeActivity({'verb': "someverb", "actor": "1234", "object": "4344"}, objects_bucket=MagicMock())
-        riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = 12343214
-
-        obj.set_indexes(riak_obj_mock)
-
-        calls = [
-            call.add_index('modified_int', ANY),
-            call.add_index('inreplyto_bin', ANY),
-            call.add_index('verb_bin', ANY),
-            call.add_index('actor_bin', ANY),
-            call.add_index('object_bin', ANY),
-        ]
-
-        riak_obj_mock.assert_has_calls(calls, any_order=True)
-        eq_(riak_obj_mock.add_index.call_count, 5)

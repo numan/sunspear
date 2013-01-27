@@ -3,8 +3,6 @@ from __future__ import absolute_import
 from nose.tools import ok_, eq_, raises, set_trace
 
 from sunspear.aggregators.property import PropertyAggregator
-from sunspear.backends import RiakBackend
-from sunspear.exceptions import SunspearValidationException, SunspearNotFoundException
 
 from itertools import groupby
 

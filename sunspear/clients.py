@@ -39,7 +39,7 @@ class SunspearClient(object):
         """
         self._backend.clear_all_activities()
 
-    def create_object(self, object_dict):
+    def create_obj(self, object_dict):
         """
         Creates an object that can be used as part of an activity. If you specific and object with an id
         that already exists, that object is overidden.
@@ -126,14 +126,14 @@ class SunspearClient(object):
         """
         self._backend.delete_sub_activity(activity_id, "like")
 
-    def get_objects(self, object_ids=[]):
+    def get_obj(self, object_ids=[]):
         """
         Gets a list of objects.
 
         :type object_ids: list
         :param object_ids: a list of objects
         """
-        return self._get_many_objects(object_ids)
+        return self.get_obj(object_ids)
 
     def get_activities(self, activity_ids=[], **kwargs):
         """
@@ -144,3 +144,6 @@ class SunspearClient(object):
         :param activity_ids: The list of activities you want to retrieve
         """
         return self._backend.get_activity(activity_ids=activity_ids, **kwargs)
+
+    def get_backend(self):
+        return self._backend

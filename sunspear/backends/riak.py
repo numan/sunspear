@@ -15,6 +15,7 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+from __future__ import absolute_import
 
 from sunspear.activitystreams.models import Object, Activity, Model
 from sunspear.exceptions import (SunspearValidationException)
@@ -22,9 +23,11 @@ from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
 
 from nydus.db import create_cluster
 
-from riak import RiakPbcTransport
+from riak.transports import RiakPbcTransport
 
 import copy
+import time
+import datetime
 
 JS_MAP = """
     function(value, keyData, arg) {
@@ -96,15 +99,35 @@ JS_REDUCE = """
     }
 """
 
+JS_MAP_OBJS = """
+    function(value, keyData, arg) {
+      if (value["not_found"]) {
+        return [value];
+      }
+      var newValues = Riak.mapValues(value, keyData, arg);
+      newValues = newValues.map(function(nv) {
+        try {
+            var parsedNv = JSON.parse(nv);
+            return parsedNv;
+        } catch(e) {
+            return;
+        }
+      });
+      //filter out undefinded things
+      return newValues.filter(function(value){ return value; });
+    }
+"""
+
 JS_REDUCE_OBJS = """
     function(value, arg) {
-      return Riak.filterNotFound(value);
+        return Riak.filterNotFound(value);
     }
 """
 
 
 class RiakBackend(BaseBackend):
-    def __init__(self, host_list=[], defaults={}, **kwargs):
+    def __init__(self, host_list=[], defaults={}, objects_bucket_name="objects",\
+        activities_bucket_name="activities", **kwargs):
 
         sunspear_defaults = {
          'transport_options': {"max_attempts": 4},
@@ -124,17 +147,17 @@ class RiakBackend(BaseBackend):
             'hosts': hosts,
         })
 
-        self._objects = self._riak_backend.bucket("objects")
-        self._activities = self._riak_backend.bucket("activities")
+        self._objects = self._riak_backend.bucket(objects_bucket_name)
+        self._activities = self._riak_backend.bucket(activities_bucket_name)
 
-    def clear_all(self):
+    def clear_all(self, **kwargs):
         """
         Deletes all activity stream data from riak
         """
         self.clear_all_activities()
         self.clear_all_objects()
 
-    def clear_all_objects(self):
+    def clear_all_objects(self, **kwargs):
         """
         Deletes all objects data from riak
         """
@@ -142,7 +165,7 @@ class RiakBackend(BaseBackend):
             self._objects.get(key).delete(rw='all', r='all', w='all', dw='all')
             assert not self._objects.get(key).exists()
 
-    def clear_all_activities(self):
+    def clear_all_activities(self, **kwargs):
         """
         Deletes all activities data from riak
         """
@@ -159,14 +182,15 @@ class RiakBackend(BaseBackend):
         return self._activities.get(activity_id).exists()
 
     def obj_create(self, obj, **kwargs):
-        obj = Object(obj, backend=self)
+        obj = Object(obj)
 
         obj.validate()
         obj_dict = obj.get_parsed_dict()
 
-        key = obj._extract_id(obj_dict)
+        key = self._extract_id(obj_dict)
 
         riak_obj = self._objects.new(key=key)
+        riak_obj.set_data(obj_dict)
         riak_obj = self.set_general_indexes(riak_obj)
 
         riak_obj.store()
@@ -183,9 +207,9 @@ class RiakBackend(BaseBackend):
         """
         if not riak_object.get_indexes('timestamp_int'):
             riak_object.add_index("timestamp_int", self._get_timestamp())
-        else:
-            riak_object.remove_index('modified_int')
-            riak_object.add_index("modified_int", self._get_timestamp())
+
+        riak_object.remove_index('modified_int')
+        riak_object.add_index("modified_int", self._get_timestamp())
         return riak_object
 
     def obj_update(self, obj, **kwargs):
@@ -200,11 +224,15 @@ class RiakBackend(BaseBackend):
         object_bucket_name = self._objects.get_name()
         objects = self._riak_backend
 
-        for object_id in obj:
-            objects = objects.add(object_bucket_name, str(object_id))
+        for o in obj:
+            objects = objects.add(object_bucket_name, self._extract_id(o))
 
-        results = objects.map("Riak.mapValuesJson").reduce(JS_REDUCE_OBJS).run()
+        results = objects.map(JS_MAP_OBJS).reduce(JS_REDUCE_OBJS).run()
         return results or []
+
+    def obj_delete(self, obj, **kwargs):
+        obj_id = self._extract_id(obj)
+        self._objects.new(key=obj_id).delete()
 
     def activity_create(self, activity, **kwargs):
         """
@@ -221,12 +249,13 @@ class RiakBackend(BaseBackend):
         activity.validate()
         activity_dict = activity.get_parsed_dict()
 
-        key = activity._extract_id(activity_dict)
+        key = self._extract_id(activity_dict)
 
         riak_obj = self._activities.new(key=key)
+        riak_obj.set_data(activity_dict)
         riak_obj = self.set_activity_indexes(self.set_general_indexes(riak_obj))
         if activity_dict['verb'] in SUB_ACTIVITY_MAP:
-            riak_obj = self.set_sub_item_indexes(riak_obj)
+            riak_obj = self.set_sub_item_indexes(riak_obj, **kwargs)
 
         riak_obj.store()
 
@@ -245,11 +274,15 @@ class RiakBackend(BaseBackend):
         """
         _dict = riak_object.get_data()
 
-        riak_object.add_index("verb_bin", str(_dict['verb']))
-        riak_object.add_index("actor_bin", str(_dict['actor']))
-        riak_object.add_index("object_bin", str(_dict['object']))
+        riak_object.remove_index('verb_bin')
+        riak_object.remove_index('actor_bin')
+        riak_object.remove_index('object_bin')
+        riak_object.add_index("verb_bin", self._extract_id(_dict['verb']))
+        riak_object.add_index("actor_bin", self._extract_id(_dict['actor']))
+        riak_object.add_index("object_bin", self._extract_id(_dict['object']))
         if 'target' in _dict and _dict.get("target"):
-            riak_object.add_index("target_bin", str(_dict['target']))
+            riak_object.remove_index('target_bin')
+            riak_object.add_index("target_bin", self._extract_id(_dict['target']))
 
         return riak_object
 
@@ -257,9 +290,9 @@ class RiakBackend(BaseBackend):
         """
         Deletes an activity item and all associated sub items
         """
-        activity_dict = self.get_activity(activity, **kwargs)
+        activity_dict = self.get_activity(activity, **kwargs)[0]
         for response_field in Activity._response_fields:
-            if response_field in self._dict:
+            if response_field in activity_dict:
                 for response_item in activity_dict[response_field]['items']:
                     self._activities.get(response_item['id']).delete()
         self._activities.get(self._extract_id(activity_dict)).delete()
@@ -291,6 +324,7 @@ class RiakBackend(BaseBackend):
         :type aggregation_pipeline: array of ``sunspear.aggregators.base.BaseAggregator``
         :param aggregation_pipeline: modify the final list of activities. Exact results depends on the implementation of the aggregation pipeline
         """
+        activity_ids = map(self._extract_id, activity_ids)
         if not activity_ids:
             return []
 
@@ -304,16 +338,16 @@ class RiakBackend(BaseBackend):
             activities = aggregator.process(activities, original_activities, aggregation_pipeline)
         return activities
 
-    def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="",
-        sub_activity_attribute="", **kwargs):
+    def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="", **kwargs):
         if sub_activity_verb.lower() not in SUB_ACTIVITY_MAP:
             raise Exception('Verb not supported')
-        return super(RiakBackend, self).create_sub_activity(activity, actor, content, extra,\
-            sub_activity_verb, sub_activity_attribute, **kwargs)
+        return super(RiakBackend, self).create_sub_activity(activity, actor, content, extra=extra,\
+            sub_activity_verb=sub_activity_verb, **kwargs)
 
     def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="",
-        sub_activity_attribute="", **kwargs):
+        **kwargs):
         sub_activity_model = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][0]
+        sub_activity_attribute = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][1]
         object_type = kwargs.get('object_type', sub_activity_verb)
 
         activity_id = self._extract_id(activity)
@@ -324,16 +358,15 @@ class RiakBackend(BaseBackend):
                 object_type=object_type, collection=sub_activity_attribute,\
                 activity_class=sub_activity_model, extra=extra)
 
-        sub_activity_obj = self.create_activity(sub_activity_obj)
+        sub_activity_obj = self.create_activity(sub_activity_obj, activity_id=original_activity_obj['id'])
+
         original_activity_obj[sub_activity_attribute]['items'][0]['actor'] = sub_activity_obj['actor']
         original_activity_obj[sub_activity_attribute]['items'][0]['id'] = sub_activity_obj['id']
         original_activity_obj[sub_activity_attribute]['items'][0]['published'] = sub_activity_obj['published']
         original_activity_obj[sub_activity_attribute]['items'][0]['object']['id'] = sub_activity_obj['id']
         original_activity_obj = self.activity_update(original_activity_obj)
 
-        dehydrated_activities = self.dehydrate_activities([sub_activity_obj, \
-            original_activity_obj])
-        return dehydrated_activities[0], dehydrated_activities[1]
+        return sub_activity_obj, original_activity_obj
 
     def sub_activity_delete(self, sub_activity, sub_activity_verb, **kwargs):
         """
@@ -362,13 +395,12 @@ class RiakBackend(BaseBackend):
         activity_data[sub_activity_model.sub_item_key]['items'] = filter(lambda x: x["id"] != sub_activity_id,\
             activity_data[sub_activity_model.sub_item_key]['items'])
 
-        activity.set_data(activity_data)
-        activity_data.store()
-
+        updated_activity = self.update_activity(activity_data, **kwargs)
         self.delete_activity(sub_activity_id)
-        return self.dehydrate_activities([activity_data])[0]
 
-    def set_sub_item_indexes(self, riak_object):
+        return updated_activity
+
+    def set_sub_item_indexes(self, riak_object, **kwargs):
         """
         Store indexes specific to a sub-activity. Stores the following indexes:
         1. id of the the parent ``Activity`` of this sub-activity
@@ -376,8 +408,11 @@ class RiakBackend(BaseBackend):
         :type riak_object: RiakObject
         :param riak_object: a RiakObject representing the model of  the class
         """
-        #TODO: Need tests for this
-        riak_object.add_index("inreplyto_bin", str(self._activity_id))
+        original_activity_id = kwargs.get('activity_id')
+        if not original_activity_id:
+            raise SunspearValidationException()
+        riak_object.remove_index('inreplyto_bin')
+        riak_object.add_index("inreplyto_bin", str(original_activity_id))
 
         return riak_object
 
@@ -394,7 +429,7 @@ class RiakBackend(BaseBackend):
             object_ids.update(self._extract_object_keys(activity))
 
         #Get the objects for the ids we have collected
-        objects = self._get_many_objects(object_ids)
+        objects = self.get_obj(object_ids)
         objects_dict = dict(((obj["id"], obj,) for obj in objects))
 
         #We also need to extract any activities that were diguised as objects. IE activities with
@@ -421,7 +456,7 @@ class RiakBackend(BaseBackend):
             #now get all the objects we don't already have and for sub-activities and and hydrate them into
             #our list of activities
             object_ids -= set(objects_dict.keys())
-            objects = self._get_many_objects(object_ids)
+            objects = self.get_obj(object_ids)
             for obj in objects:
                 objects_dict[obj["id"]] = obj
 
@@ -601,9 +636,25 @@ class RiakBackend(BaseBackend):
             this_id = activity_or_id
         elif isinstance(activity_or_id, dict):
             this_id = activity_or_id.get('id', None)
+            try:
+                this_id = str(this_id)
+            except:
+                pass
         else:
             try:
                 this_id = str(activity_or_id)
             except:
                 pass
         return this_id
+
+    def _get_timestamp(self):
+        return long(round(time.time() * 10000))
+
+    def get_new_id(self):
+        """
+        Generates a new unique ID. The default implementation uses uuid1 to
+        generate a unique ID.
+
+        :return: a new id
+        """
+        return time.mktime(datetime.datetime(month=1, day=1, year=2013).timetuple()) - long(round(time.time() * 10000))

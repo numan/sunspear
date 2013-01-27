@@ -74,15 +74,14 @@ class BaseBackend(object):
         """
         activity_id = self._extract_id(activity)
         if activity_id:
-            existing_activity = self.get_activity(activity_id)
-            if existing_activity:
+            if self.activity_exists(activity, **kwargs):
                 raise SunspearDuplicateEntryException()
         else:
             activity['id'] = self.get_new_id()
 
         objs_created = []
         objs_modified = []
-        for key, value in activity:
+        for key, value in activity.items():
             if key in Activity._object_fields and isinstance(value, dict):
                 if self.obj_exists(value):
                     previous_value = self.get_obj([self._extract_id(value)])[0]
@@ -101,13 +100,13 @@ class BaseBackend(object):
                     self._rollback(objs_created, objs_modified)
                     raise
 
-                activity[key] = value.get_dict()["id"]
+                activity[key] = value["id"]
 
-            if key in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields\
+            if key in Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields\
                 and value:
                 for i, target_obj in enumerate(value):
                     if isinstance(target_obj, dict):
-                        previous_value = Object(target_obj.get_dict(), bucket=self._objects_bucket)
+                        previous_value = self.get_obj(target_obj)
                         if self.obj_exists(target_obj):
                             previous_value = self.get_obj(target_obj)
                         else:
@@ -123,7 +122,7 @@ class BaseBackend(object):
                         except Exception:
                             self._rollback(objs_created, objs_modified)
                             raise
-                        activity[key][i] = target_obj.get_dict()["id"]
+                        activity[key][i] = target_obj["id"]
 
         try:
             return_val = self.activity_create(activity, **kwargs)
@@ -133,8 +132,9 @@ class BaseBackend(object):
 
         return return_val
 
-    def _rollback(self, new_objects, modified_objects):
-        [self.delete_obj(obj) for obj in (new_objects + modified_objects)]
+    def _rollback(self, new_objects, modified_objects, **kwargs):
+        [self.delete_obj(obj, **kwargs) for obj in new_objects]
+        [self.update_obj(obj, **kwargs) for obj in modified_objects]
 
     def activity_create(self, activity, **kwargs):
         """
@@ -162,7 +162,7 @@ class BaseBackend(object):
         if not activity_id:
             raise SunspearInvalidActivityException()
 
-        return self.update(activity, **kwargs)
+        return self.activity_update(activity, **kwargs)
 
     def activity_update(self, activity, **kwargs):
         raise NotImplementedError()
@@ -185,18 +185,18 @@ class BaseBackend(object):
     def activity_delete(self, activity, **kwargs):
         raise NotImplementedError()
 
-    def get_activity(self, activity, **kwargs):
+    def get_activity(self, activity_ids=[], **kwargs):
         """
         Gets an activity or a list of activities from the backend.
 
-        :type activity: list
-        :param activity: a list of ids of activities that will be retrieved from
+        :type activity_ids: list
+        :param activity_ids: a list of ids of activities that will be retrieved from
             the backend.
 
         :return: a list of activities. If an activity is not found, a partial list should
             be returned.
         """
-        return self.activity_get(self._listify(activity), **kwargs)
+        return self.activity_get(self._listify(activity_ids), **kwargs)
 
     def activity_get(self, activity, **kwargs):
         raise NotImplementedError()
@@ -214,14 +214,10 @@ class BaseBackend(object):
         :return: dict representing the new obj.
         """
         obj_id = self._extract_id(obj)
-        if obj_id:
-            existing_obj = self.obj_exists(obj, **kwargs)
-            if existing_obj:
-                raise SunspearDuplicateEntryException()
-        else:
+        if not obj_id:
             obj['id'] = self.get_new_id()
 
-        return self.obj_create(obj, kwargs)(obj, **kwargs)
+        return self.obj_create(obj, **kwargs)
 
     def obj_create(self, obj, **kwargs):
         """
@@ -267,12 +263,12 @@ class BaseBackend(object):
         if not obj_id:
             raise SunspearInvalidObjectException()
 
-        return self.delete(obj, **kwargs)
+        return self.obj_delete(obj, **kwargs)
 
     def obj_delete(self, obj, **kwargs):
         raise NotImplementedError()
 
-    def get_obj(self, obj, **kwargs):
+    def get_obj(self, obj_ids=[], **kwargs):
         """
         Gets an obj or a list of activities from the backend.
 
@@ -283,13 +279,12 @@ class BaseBackend(object):
         :return: a list of activities. If an obj is not found, a partial list should
             be returned.
         """
-        return self.get(self._listify(obj), **kwargs)
+        return self.obj_get(self._listify(obj_ids), **kwargs) if obj_ids else []
 
     def obj_get(self, obj, **kwargs):
         raise NotImplementedError()
 
-    def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="",
-        sub_activity_attribute="", **kwargs):
+    def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="", **kwargs):
         """
         Creates a new sub-activity as a child of ``activity``.
 
@@ -303,9 +298,6 @@ class BaseBackend(object):
         :param extra: additional data the is to be included as part of the ``sub-activity`` activity
         :type sub_activity_verb: string
         :param sub_activity_verb: the verb of the sub activity
-        :type sub_activity_attribute: string
-        :param sub_activity_attribute: the attribute the sub activity will appear under as part of the
-            original ``activity``
         """
         actor_id = self._extract_id(actor)
         if not actor_id:
@@ -315,8 +307,8 @@ class BaseBackend(object):
         if not activity_id:
             raise SunspearInvalidActivityException()
 
-        return self.sub_activity_create(activity, actor, content, extra={}, sub_activity_verb="",
-            sub_activity_attribute="", **kwargs)
+        return self.sub_activity_create(activity, actor, content, extra=extra, sub_activity_verb=sub_activity_verb,
+            **kwargs)
 
     def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="",
         sub_activity_attribute="", **kwargs):
@@ -347,7 +339,7 @@ class BaseBackend(object):
         :type list_or_string: string or list
         :param list_or_string: the name of things as a string or a list of strings
         """
-        if isinstance(list_or_string, basestring):
+        if not isinstance(list_or_string, (list, tuple, set)):
             list_or_string = [list_or_string]
         else:
             list_or_string = list_or_string
