@@ -44,18 +44,18 @@ class Model(object):
                 raise SunspearValidationException("Reserved field name used: %s" % field)
 
         for field in self._media_fields:
-            if self._dict.get(field, None) and isinstance(self._dict.get(field, None), Model):
-                self._dict.get(field).validate()
+            if self._dict.get(field, None) and isinstance(self._dict.get(field, None), dict):
+                MediaLink(self._dict.get(field)).validate()
 
         for field in self._object_fields:
-            if self._dict.get(field, None) and isinstance(self._dict.get(field, None), Model):
-                self._dict.get(field).validate()
+            if self._dict.get(field, None) and isinstance(self._dict.get(field, None), dict):
+                Object(self._dict.get(field)).validate()
 
         for field in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields:
             if self._dict.get(field, None):
                 for sub_obj in self._dict.get(field):
-                    if sub_obj and isinstance(sub_obj, Model):
-                        sub_obj.validate()
+                    if sub_obj and isinstance(sub_obj, dict):
+                        Object(sub_obj).validate()
 
     def parse_data(self, data, *args, **kwargs):
         #TODO Rename to jsonify_dict
@@ -225,21 +225,6 @@ class SubItemMixin(object):
 
         del self._dict['replies']
         del self._dict['likes']
-        self._activity_id = kwargs.get('activity_id', None)
-
-    def set_indexes(self, riak_object):
-        """
-        Store indexes specific to a sub-activity. Stores the following indexes:
-        1. id of the the parent ``Activity`` of this sub-activity
-
-        :type riak_object: RiakObject
-        :param riak_object: a RiakObject representing the model of  the class
-        """
-        #TODO: Need tests for this
-        riak_object.add_index("inreplyto_bin", str(self._activity_id))
-        riak_object = super(SubItemMixin, self).set_indexes(riak_object)
-
-        return riak_object
 
 
 class ReplyActivity(SubItemMixin, Activity):
