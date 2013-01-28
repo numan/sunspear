@@ -61,21 +61,21 @@ class TestRiakBackend(object):
             ok_(obj['id'] in [obj1_id, obj2_id, obj3_id, obj4_id])
 
     #see https://github.com/basho/riak_kv/issues/358
-    # def test_get_obj_no_objects_returns_empty_list(self):
-    #     obj1_id = '1111'
-    #     obj2_id = '1112'
-    #     obj3_id = '1113'
-    #     obj4_id = '1114'
+    def test_get_obj_no_objects_returns_empty_list(self):
+        obj1_id = '1111'
+        obj2_id = '1112'
+        obj3_id = '1113'
+        obj4_id = '1114'
 
-    #     self._backend._objects.get(obj1_id).delete()
-    #     self._backend._objects.get(obj2_id).delete()
-    #     self._backend._objects.get(obj3_id).delete()
-    #     self._backend._objects.get(obj4_id).delete()
+        self._backend._objects.get(obj1_id).delete()
+        self._backend._objects.get(obj2_id).delete()
+        self._backend._objects.get(obj3_id).delete()
+        self._backend._objects.get(obj4_id).delete()
 
-    #     objects = self._backend.get_obj([obj1_id, obj2_id, obj3_id, obj4_id])
+        objects = self._backend.get_obj([obj1_id, obj2_id, obj3_id, obj4_id])
 
-    #     eq_(len(objects), 0)
-    #     eq_(objects, [])
+        eq_(len(objects), 0)
+        eq_(objects, [])
 
     def test_get_obj_no_args_returns_empty_list(self):
         objects = self._backend.get_obj([])
@@ -128,6 +128,29 @@ class TestRiakBackend(object):
 
         eq_(act_obj_dict['actor'], actor)
         eq_(act_obj_dict['object'], obj)
+
+    def test_delete_activity(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        act_obj = self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+        act_obj_dict = act_obj
+
+        eq_(act_obj_dict['actor'], actor)
+        eq_(act_obj_dict['object'], obj)
+
+        self._backend.delete_activity(act_obj_dict)
+        ok_(not self._backend._activities.get(key=act_obj_dict['id']).exists())
 
     def test_create_activity_with_targeted_audience(self):
         self._backend._activities.get('5').delete()
@@ -709,7 +732,7 @@ class TestRiakBackend(object):
         ok_('likes' not in returned_updated_activity)
         ok_('likes' not in activity_obj_dict)
 
-    def test_sub_activity_delete(self):
+    def test_reply_delete(self):
         self._backend._activities.get('5').delete()
 
         actor_id = '1234'

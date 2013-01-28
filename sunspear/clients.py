@@ -1,5 +1,5 @@
 """
-Copyright 2012 Numan Sachwani <numan856@gmail.com>
+Copyright 2013 Numan Sachwani <numan856@gmail.com>
 
 This file is provided to you under the Apache License,
 Version 2.0 (the "License"); you may not use this file
@@ -15,6 +15,7 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 
 class SunspearClient(object):
     def __init__(self, backend, **kwargs):
@@ -39,7 +40,7 @@ class SunspearClient(object):
         """
         self._backend.clear_all_activities()
 
-    def create_obj(self, object_dict):
+    def create_object(self, object_dict):
         """
         Creates an object that can be used as part of an activity. If you specific and object with an id
         that already exists, that object is overidden.
@@ -60,7 +61,7 @@ class SunspearClient(object):
         retriving the activity.
 
         :type actstream_dict: dict
-        :param actstream_dict: a dictionary representing the ``activity`` we want to store in the backend.        
+        :param actstream_dict: a dictionary representing the ``activity`` we want to store in the backend.
         """
 
         return self._backend.create_activity(actstream_dict)
@@ -80,7 +81,7 @@ class SunspearClient(object):
         :param extra: additional data the is to be included as part of the ``sub-activity`` activity
         """
         return self._backend.create_sub_activity(activity, actor, content,\
-            extra=extra, sub_activity_verb="reply", sub_activity_attribute="replies", **kwargs)
+            extra=extra, sub_activity_verb="reply", **kwargs)
 
     def create_like(self, activity, actor, content="", extra={}, **kwargs):
         """
@@ -97,7 +98,7 @@ class SunspearClient(object):
         :param extra: additional data the is to be included as part of the ``sub-activity`` activity
         """
         return self._backend.create_sub_activity(activity, actor, content,\
-            extra=extra, sub_activity_verb="reply", sub_activity_attribute="replies", **kwargs)
+            extra=extra, sub_activity_verb="like", **kwargs)
 
     def delete_activity(self, activity_id, **kwargs):
         """
@@ -106,34 +107,34 @@ class SunspearClient(object):
         :type activity_id: string
         :param activity_id: The id of the activity we want to create a reply for
         """
-        self._backend.delete_activity(activity_id, **kwargs)
+        return self._backend.delete_activity(activity_id, **kwargs)
 
-    def delete_reply(self, activity_id):
+    def delete_reply(self, activity_id, **kwargs):
         """
         Deletes a ``reply`` made on an activity. This will also update the corresponding activity.
 
         :type activity_id: string
         :param activity_id: the id of the reply activity to delete.
         """
-        self._backend.delete_sub_activity(activity_id, "reply")
+        return self._backend.delete_sub_activity(activity_id, "reply", **kwargs)
 
-    def delete_like(self, activity_id):
+    def delete_like(self, activity_id, **kwargs):
         """
         Deletes a ``like`` made on an activity. This will also update the corresponding activity.
 
         :type activity_id: string
         :param activity_id: the id of the like activity to delete.
         """
-        self._backend.delete_sub_activity(activity_id, "like")
+        return self._backend.delete_sub_activity(activity_id, "like", **kwargs)
 
-    def get_obj(self, object_ids=[]):
+    def get_objects(self, object_ids=[]):
         """
         Gets a list of objects.
 
         :type object_ids: list
         :param object_ids: a list of objects
         """
-        return self.get_obj(object_ids)
+        return self._backend.get_obj(object_ids)
 
     def get_activities(self, activity_ids=[], **kwargs):
         """
