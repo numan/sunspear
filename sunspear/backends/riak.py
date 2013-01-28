@@ -28,6 +28,7 @@ from riak.transports import RiakPbcTransport
 import copy
 import time
 import datetime
+import calendar
 
 JS_MAP = """
     function(value, keyData, arg) {
