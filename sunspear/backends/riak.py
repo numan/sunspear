@@ -352,7 +352,7 @@ class RiakBackend(BaseBackend):
         object_type = kwargs.get('object_type', sub_activity_verb)
 
         activity_id = self._extract_id(activity)
-        activity_model = Activity(self.activity_get(activity_id)[0])
+        activity_model = Activity(self.get_activity(activity_id, **kwargs)[0])
 
         sub_activity_obj, original_activity_obj = activity_model\
             .get_parsed_sub_activity_dict(actor=actor, content=content, verb=sub_activity_verb,\
