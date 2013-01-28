@@ -770,7 +770,7 @@ class TestRiakBackend(object):
         ok_('replies' not in returned_updated_activity)
         ok_('replies' not in activity_obj_dict)
 
-    def test_delete_activity_with_reply(self):
+    def test_delete_sub_activity_reply(self):
         self._backend._activities.get('5').delete()
 
         actor_id = '1234'
@@ -806,7 +806,7 @@ class TestRiakBackend(object):
         ok_(not self._backend._activities.get(reply_activity_dict['id']).exists())
         ok_(not self._backend._activities.get(activity_obj_dict['replies']['items'][0]['id']).exists())
 
-    def test_delete_activity_with_like(self):
+    def test_delete_sub_activity_like(self):
         self._backend._activities.get('5').delete()
 
         actor_id = '1234'
@@ -841,6 +841,43 @@ class TestRiakBackend(object):
 
         ok_(not self._backend._activities.get(like_activity_dict['id']).exists())
         ok_(not self._backend._activities.get(activity_obj_dict['likes']['items'][0]['id']).exists())
+
+
+    def test_delete_activity_with_sub_activity(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '4321'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(5, actor2_id, "",\
+            sub_activity_verb='like')
+
+        eq_(like_activity_dict['actor']['id'], actor2_id)
+        eq_(like_activity_dict['verb'], 'like')
+
+        eq_(activity_obj_dict['likes']['totalItems'], 1)
+        eq_(activity_obj_dict['likes']['items'][0]['object']['id'], like_activity_dict['id'])
+        eq_(activity_obj_dict['likes']['items'][0]['verb'], 'like')
+        eq_(activity_obj_dict['likes']['items'][0]['actor']['id'], actor2_id)
+
+        #now delete the activity and make sure the like gets deleted too:
+        self._backend.delete_activity(activity_obj_dict)
+
+        ok_(not self._backend._activities.get(like_activity_dict['id']).exists())
+        ok_(not self._backend._activities.get(activity_obj_dict['id']).exists())
 
     def test_get_activities_doesnt_crash_for_missing_activities(self):
         self._backend._activities.get('1').delete()
