@@ -658,5 +658,4 @@ class RiakBackend(BaseBackend):
 
         :return: a new id
         """
-        return long(round((time.time() * 10000) - (time.mktime(datetime.datetime(month=1, day=1, year=2013).timetuple()) * 10000)))
-
+        return long(round((calendar.timegm(time.gmtime()) * 10000) - (time.mktime(datetime.datetime(month=1, day=1, year=2013).timetuple()) * 10000)))
