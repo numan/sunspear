@@ -1,10 +1,9 @@
-from sunspear.exceptions import (SunspearValidationException, SunspearInvalidConfigurationError,
-    SunspearNotFoundException, SunspearRiakException)
+from sunspear.exceptions import SunspearValidationException
+
 from sunspear.lib.rfc3339 import rfc3339
 
 from dateutil.parser import parse
 
-import time
 import datetime
 
 
@@ -18,7 +17,8 @@ class Model(object):
     _direct_audience_targeting_fields = []
     _indirect_audience_targeting_fields = []
 
-    def __init__(self, object_dict, *args, **kwargs):
+    def __init__(self, object_dict, backend, *args, **kwargs):
+        self._backend = backend
         self._dict = self._set_defaults(object_dict)
 
     def _set_defaults(self, model_dict):
@@ -45,17 +45,17 @@ class Model(object):
 
         for field in self._media_fields:
             if self._dict.get(field, None) and isinstance(self._dict.get(field, None), dict):
-                MediaLink(self._dict.get(field)).validate()
+                MediaLink(self._dict.get(field), backend=self._backend).validate()
 
         for field in self._object_fields:
             if self._dict.get(field, None) and isinstance(self._dict.get(field, None), dict):
-                Object(self._dict.get(field)).validate()
+                Object(self._dict.get(field), backend=self._backend).validate()
 
         for field in self._direct_audience_targeting_fields + self._indirect_audience_targeting_fields:
             if self._dict.get(field, None):
                 for sub_obj in self._dict.get(field):
                     if sub_obj and isinstance(sub_obj, dict):
-                        Object(sub_obj).validate()
+                        Object(sub_obj, backend=self._backend).validate()
 
     def parse_data(self, data, *args, **kwargs):
         #TODO Rename to jsonify_dict
@@ -125,7 +125,7 @@ class Model(object):
 
         :return: a new id
         """
-        return str(long(round((time.time() * 10000) - (time.mktime(datetime.datetime(month=1, day=1, year=2013).timetuple()) * 10000))))
+        return self._backend.get_new_id()
 
     def __getitem__(self, key):
         return self._dict[key]

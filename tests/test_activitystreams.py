@@ -15,7 +15,7 @@ class TestActivityModel(object):
             "actor": {"objectType": "actor", "id": 1232, "published": "today"}, \
             "target": {"objectType": "target", "id": 4325, "published": "today"}, \
             "object": {"objectType": "something", "id": 4353, "published": "today"},
-            "icon": {'url': "http://example.org/something"}}, objects_bucket=MagicMock())
+            "icon": {'url': "http://example.org/something"}}, backend=MagicMock())
 
         act_dict = act._dict
         ok_(isinstance(act_dict['actor'], dict))
@@ -35,7 +35,7 @@ class TestActivityModel(object):
                 'bto': [{'objectType': 'user3', 'id': 'user:id:3'}, {'objectType': 'user4', 'id': 'user:id:4'}, {'objectType': 'user5', 'id': 'user:id:5'}],
                 'cc': [{'objectType': 'user6', 'id': 'user:id:6'}],
                 'bcc': [],
-            }, objects_bucket=MagicMock())
+            }, backend=MagicMock())
 
         act_dict = act._dict
 
@@ -50,7 +50,7 @@ class TestActivityModel(object):
             "actor": {"objectType": "actor", "id": 1232, "published": '2012-07-05T12:00:00Z'}, \
             "target": {"objectType": "target", "id": 4325, "published": '2012-07-05T12:00:00Z'}, \
             "object": {"objectType": "something", "id": 4353, "published": '2012-07-05T12:00:00Z'},
-            "icon": {'url': "http://example.org/something"}}, objects_bucket=MagicMock())
+            "icon": {'url': "http://example.org/something"}}, backend=MagicMock())
 
         act_dict = act.parse_data(act._dict)
 
@@ -70,7 +70,7 @@ class TestActivityModel(object):
                 'bto': [{'objectType': 'user3', 'id': 'user:id:3', 'published': '2012-07-05T12:00:00Z'}, {'objectType': 'user4', 'id': 'user:id:4', 'published': '2012-07-05T12:00:00Z'}, {'objectType': 'user5', 'id': 'user:id:5', 'published': '2012-07-05T12:00:00Z'}],
                 'cc': [{'objectType': 'user6', 'id': 'user:id:6', 'published': '2012-07-05T12:00:00Z'}],
                 'bcc': [],
-            }, objects_bucket=MagicMock())
+            }, backend=MagicMock())
 
         act_dict = act.parse_data(act._dict)
         eq_({
@@ -86,22 +86,22 @@ class TestActivity(object):
     def test_required_fields_all_there(self):
         Activity({"id": 5, "verb": "post", \
             "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-            "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+            "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_actor(self):
         Activity({"id": 5, "title": "Stream Item", "verb": "post", \
-            "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+            "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_object(self):
         Activity({"id": 5, "title": "Stream Item", "verb": "post", \
-            "actor": {"objectType": "something", "id": 1232, "published": "today"}}, objects_bucket=MagicMock()).validate()
+            "actor": {"objectType": "something", "id": 1232, "published": "today"}}, backend=MagicMock()).validate()
 
     def test_required_fields_no_id(self):
         act = Activity({"title": "Stream Item", "verb": "post", \
             "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-            "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock())
+            "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock())
         act.validate()
         ok_(act.get_dict()["id"])
 
@@ -109,13 +109,13 @@ class TestActivity(object):
     def test_required_fields_no_verb(self):
         Activity({"id": 5, "title": "Stream Item", \
             "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-            "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+            "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
 
     def test_disallowed_field_published(self):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "published": "today", \
                 "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: published")
@@ -124,7 +124,7 @@ class TestActivity(object):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "updated": "today", \
                 "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: updated")
@@ -133,7 +133,7 @@ class TestActivity(object):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "to": [], \
                 "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: to")
@@ -142,7 +142,7 @@ class TestActivity(object):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "bto": [], \
                 "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: bto")
@@ -151,7 +151,7 @@ class TestActivity(object):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "cc": [], \
                 "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: cc")
@@ -160,7 +160,7 @@ class TestActivity(object):
         try:
             Activity({"id": 5, "title": "Stream Item", "verb": "post", "bcc": [], \
                 "actor": {"objectType": "something", "id": 1232, "published": "today"}, \
-                "object": {"objectType": "something", "id": 4353, "published": "today"}}, objects_bucket=MagicMock()).validate()
+                "object": {"objectType": "something", "id": 4353, "published": "today"}}, backend=MagicMock()).validate()
         except SunspearValidationException as e:
             ok_(isinstance(e, SunspearValidationException))
             eq_(e.message, "Reserved field name used: bcc")
@@ -168,28 +168,28 @@ class TestActivity(object):
 
 class TestMediaLink(object):
     def test_required_fields_all_there(self):
-        MediaLink({"url": "http://cdn.fake.com/static/img/clown.png"}).validate()
+        MediaLink({"url": "http://cdn.fake.com/static/img/clown.png"}, backend=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_url(self):
-        MediaLink({}).validate()
+        MediaLink({}, backend=MagicMock()).validate()
 
 
 class TestObject(object):
     def test_required_fields_all_there(self):
-        Object({"objectType": "something", "id": 1232, "published": "today"}).validate()
+        Object({"objectType": "something", "id": 1232, "published": "today"}, backend=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_object_type(self):
-        Object({"id": 1232, "published": "today"}).validate()
+        Object({"id": 1232, "published": "today"}, backend=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_no_id(self):
-        Object({"objectType": "something", "published": "today"}).validate()
+        Object({"objectType": "something", "published": "today"}, backend=MagicMock()).validate()
 
     @raises(SunspearValidationException)
     def test_required_fields_published(self):
-        Object({"objectType": "something", "id": 1232}).validate()
+        Object({"objectType": "something", "id": 1232}, backend=MagicMock()).validate()
 
 
 class TestModelMethods(object):
@@ -197,7 +197,7 @@ class TestModelMethods(object):
         d = datetime.datetime.now()
 
         obj = Model({"displayName": "something", "id": 1232, \
-            "published": d, "updated": d})
+            "published": d, "updated": d}, backend=MagicMock())
         parsed_dict = obj.parse_data(obj.get_dict())
         eq_(parsed_dict["published"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
 
@@ -205,25 +205,25 @@ class TestModelMethods(object):
         d = datetime.datetime.now()
 
         obj = Model({"displayName": "something", "id": 1232, \
-            "published": d, "updated": d})
+            "published": d, "updated": d}, backend=MagicMock())
         parsed_dict = obj.parse_data(obj.get_dict())
         eq_(parsed_dict["updated"], d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
 
     def test__set_defaults(self):
-        obj = Model({})
+        obj = Model({}, backend=MagicMock())
         obj_dict = obj._set_defaults({'id': 12})
 
         ok_(isinstance(obj_dict.get('id'), basestring))
 
     def test__set_defaults_no_id_does_not_fail(self):
-        obj = Model({})
+        obj = Model({}, backend=MagicMock())
         data = {'foo': 'bar', 'baz': 'bee'}
         obj_dict = obj._set_defaults(data)
 
         eq_(obj_dict, data)
 
     def test__parse_date(self):
-        obj = Model({})
+        obj = Model({}, backend=MagicMock())
         d = datetime.datetime.utcnow()
         eq_(obj._parse_date(d), d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
 

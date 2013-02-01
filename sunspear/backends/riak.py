@@ -127,6 +127,8 @@ JS_REDUCE_OBJS = """
 
 
 class RiakBackend(BaseBackend):
+    custom_epoch = datetime.datetime(month=1, day=1, year=2013)
+
     def __init__(self, host_list=[], defaults={}, objects_bucket_name="objects",\
         activities_bucket_name="activities", **kwargs):
 
@@ -183,7 +185,7 @@ class RiakBackend(BaseBackend):
         return self._activities.get(activity_id).exists()
 
     def obj_create(self, obj, **kwargs):
-        obj = Object(obj)
+        obj = Object(obj, backend=self)
 
         obj.validate()
         obj_dict = obj.get_parsed_dict()
@@ -245,7 +247,7 @@ class RiakBackend(BaseBackend):
         If you provide an object id and the object does not exist, it is saved anyway, and returned as an empty
         dictionary when retriving the activity later.
         """
-        activity = Activity(activity)
+        activity = Activity(activity, backend=self)
 
         activity.validate()
         activity_dict = activity.get_parsed_dict()
@@ -352,7 +354,7 @@ class RiakBackend(BaseBackend):
         object_type = kwargs.get('object_type', sub_activity_verb)
 
         activity_id = self._extract_id(activity)
-        activity_model = Activity(self.get_activity(activity_id, **kwargs)[0])
+        activity_model = Activity(self.get_activity(activity_id, **kwargs)[0], backend=self)
 
         sub_activity_obj, original_activity_obj = activity_model\
             .get_parsed_sub_activity_dict(actor=actor, content=content, verb=sub_activity_verb,\
@@ -649,7 +651,7 @@ class RiakBackend(BaseBackend):
         return this_id
 
     def _get_timestamp(self):
-        return long(round(time.time() * 10000))
+        return long(round(time.time() * 1000))
 
     def get_new_id(self):
         """
@@ -658,4 +660,5 @@ class RiakBackend(BaseBackend):
 
         :return: a new id
         """
-        return long(round((calendar.timegm(time.gmtime()) * 10000) - (time.mktime(datetime.datetime(month=1, day=1, year=2013).timetuple()) * 10000)))
+        now = datetime.datetime.utcnow()
+        return str(long(calendar.timegm(now.utctimetuple()) - calendar.timegm(self.custom_epoch.utctimetuple())) + now.microsecond)
