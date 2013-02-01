@@ -28,6 +28,9 @@ class Model(object):
         :type model_dict: dict
         :param model_dict: The dictionary describing the model
         """
+        if "id" not in model_dict or not model_dict["id"]:
+            model_dict["id"] = self.get_new_id()
+
         if 'id' in model_dict:
             model_dict['id'] = str(model_dict['id'])
         return model_dict
@@ -141,8 +144,6 @@ class Activity(Model):
 
     def _set_defaults(self, model_dict):
         model_dict = super(Activity, self)._set_defaults(model_dict)
-        if "id" not in model_dict or not model_dict["id"]:
-            model_dict["id"] = self.get_new_id()
 
         if 'replies' not in model_dict:
             model_dict['replies'] = {'totalItems': 0, 'items': []}
@@ -154,6 +155,7 @@ class Activity(Model):
 
     def get_parsed_sub_activity_dict(self, actor, content="", verb="reply", object_type="reply", \
         collection="replies", activity_class=None, extra={}, **kwargs):
+        #TODO: Doesn't feel like this should be here Feels like it belongs in the backend.
 
         in_reply_to_dict = {
             'objectType': 'activity',

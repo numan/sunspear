@@ -183,9 +183,10 @@ class TestObject(object):
     def test_required_fields_no_object_type(self):
         Object({"id": 1232, "published": "today"}, backend=MagicMock()).validate()
 
-    @raises(SunspearValidationException)
-    def test_required_fields_no_id(self):
-        Object({"objectType": "something", "published": "today"}, backend=MagicMock()).validate()
+    def test_required_fields_no_id_generates_id(self):
+        obj = Object({"objectType": "something", "published": "today"}, backend=MagicMock())
+        obj.validate()
+        ok_(obj._dict['id'])
 
     @raises(SunspearValidationException)
     def test_required_fields_published(self):
