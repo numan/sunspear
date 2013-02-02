@@ -30,6 +30,9 @@ import time
 import datetime
 import calendar
 
+__all__ = ('RiakBackend', )
+
+
 JS_MAP = """
     function(value, keyData, arg) {
       if (value["not_found"]) {
@@ -313,19 +316,22 @@ class RiakBackend(BaseBackend):
         :param activity_ids: The list of activities you want to retrieve
         :type filters: dict
         :param filters: filters list of activities by key, value pair. For example, ``{'verb': 'comment'}`` would only return activities where the ``verb`` was ``comment``.
-        Filters do not work for nested dictionaries.
+            Filters do not work for nested dictionaries.
         :type raw_filter: string
         :param raw_filter: allows you to specify a javascript function as a string. The function should return ``true`` if the activity should be included in the result set
-        or ``false`` it shouldn't. If you specify a raw filter, the filters specified in ``filters`` will not run. How ever, the results will still be filtered based on
-        the ``audience_targeting`` parameter.
+            or ``false`` it shouldn't. If you specify a raw filter, the filters specified in ``filters`` will not run. How ever, the results will still be filtered based on
+            the ``audience_targeting`` parameter.
         :type include_public: boolean
         :param include_public: If ``True``, and the ``audience_targeting`` dictionary is defined, activities that are
-        not targeted towards anyone are included in the results
+            not targeted towards anyone are included in the results
         :type audience_targeting: dict
         :param audience_targeting: Filters the list of activities targeted towards a particular audience. The key for the dictionary is one of ``to``, ``cc``, ``bto``, or ``bcc``.
-        The values are an array of object ids
+            The values are an array of object ids
         :type aggregation_pipeline: array of ``sunspear.aggregators.base.BaseAggregator``
         :param aggregation_pipeline: modify the final list of activities. Exact results depends on the implementation of the aggregation pipeline
+
+        :return: list -- a list of activities matching ``activity_ids``. If the activities is not found, it is not included in the result set.
+            Activities are returned in the order of ids provided.
         """
         activity_ids = map(self._extract_id, activity_ids)
         if not activity_ids:

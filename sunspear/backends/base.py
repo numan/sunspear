@@ -1,28 +1,10 @@
-"""
-Copyright 2013 Numan Sachwani <numan856@gmail.com>
-
-This file is provided to you under the Apache License,
-Version 2.0 (the "License"); you may not use this file
-except in compliance with the License.  You may obtain
-a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
-"""
-
-from sunspear.activitystreams.models import Object, Activity, ReplyActivity, LikeActivity
+from sunspear.activitystreams.models import Activity, ReplyActivity, LikeActivity
 from sunspear.exceptions import (SunspearDuplicateEntryException, SunspearInvalidActivityException,
     SunspearInvalidObjectException)
 
-
 import uuid
 
+__all__ = ('BaseBackend', 'SUB_ACTIVITY_MAP')
 
 SUB_ACTIVITY_MAP = {
     'reply': (ReplyActivity, 'replies',),
@@ -32,9 +14,15 @@ SUB_ACTIVITY_MAP = {
 
 class BaseBackend(object):
     def clear_all_objects(self):
+        """
+        Clears all objects from the backend.
+        """
         raise NotImplementedError()
 
     def clear_all_activities(self):
+        """
+        Clears all activities from the backend.
+        """
         raise NotImplementedError()
 
     def obj_exists(self, obj, **kwargs):
@@ -65,6 +53,9 @@ class BaseBackend(object):
         Stores a new ``activity`` in the backend. If an object with the same id already exists in
         the backend, a ``SunspearDuplicateEntryException`` is raised. If an ID is not provided, one
         is generated on the fly.
+
+        Activities that provide ``objects`` as dictionaries have their objects processed and stored using
+        ``create_obj``, and the ``objects`` are replaced with their id's within the activity.
 
         :type activity: dict
         :param activity: activity we want to store in the backend
@@ -165,6 +156,14 @@ class BaseBackend(object):
         return self.activity_update(activity, **kwargs)
 
     def activity_update(self, activity, **kwargs):
+        """
+        Performs the actual task of updating the activity in the backend.
+
+        :type activity: dict
+        :param activity: a dict representing the activity
+
+        :return: a dict representing the newly stored activity
+        """
         raise NotImplementedError()
 
     def delete_activity(self, activity, **kwargs):
@@ -183,6 +182,12 @@ class BaseBackend(object):
         return self.activity_delete(activity, **kwargs)
 
     def activity_delete(self, activity, **kwargs):
+        """
+        Performs the task of actually deleting the activity from the backend.
+
+        :type activity: dict
+        :param activity: a dict representing the activity
+        """
         raise NotImplementedError()
 
     def get_activity(self, activity_ids=[], **kwargs):
@@ -235,10 +240,14 @@ class BaseBackend(object):
         Updates an existing obj in the backend. If the object does not exist,
         it is created in the backend.
 
+        **raises**:
+
+        * ``SunspearInvalidObjectException`` -- if the obj doesn't have a valid id.
+
         :type obj: dict
         :param obj: a dict representing the obj
 
-        :raises: ``SunspearInvalidObjectException`` if the obj doesn't have a valid id.
+        :raises: SunspearInvalidObjectException
         :return: a dict representing the newly stored obj
         """
         obj_id = self._extract_id(obj)
@@ -254,10 +263,14 @@ class BaseBackend(object):
         """
         Deletes an existing obj from the backend.
 
+        **raises**:
+
+        * ``SunspearInvalidObjectException`` -- if the obj doesn't have a valid id.
+
         :type obj: dict
         :param obj: a dict representing the obj
 
-        :raises: ``SunspearInvalidObjectException`` if the obj doesn't have a valid id.
+        :raises: SunspearInvalidObjectException
         """
         obj_id = self._extract_id(obj)
         if not obj_id:
@@ -298,6 +311,9 @@ class BaseBackend(object):
         :param extra: additional data the is to be included as part of the ``sub-activity`` activity
         :type sub_activity_verb: string
         :param sub_activity_verb: the verb of the sub activity
+
+        :return: a tuple containing the new sub activity and the original activity
+            the sub activity was created for.
         """
         actor_id = self._extract_id(actor)
         if not actor_id:

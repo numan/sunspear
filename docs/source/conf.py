@@ -16,6 +16,8 @@ import sys, os
 FILE_ROOT = os.path.abspath(os.path.dirname(__file__))
 #add the apps dir to the python path.
 sys.path.insert(0, os.path.join(FILE_ROOT, '../..'))
+sys.path.insert(0, os.path.join(FILE_ROOT, '../../../lib/python2.7/site-packages/'))
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the

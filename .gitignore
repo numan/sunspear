@@ -8,3 +8,5 @@
 /build
 .ropeproject/**
 docs/build/**
+.DS_Store
+source/.DS_Store

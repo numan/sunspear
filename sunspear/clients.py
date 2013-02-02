@@ -1,4 +1,8 @@
 class SunspearClient(object):
+    """
+    The class is used to create, delete, remove and update activity stream items.
+    This is the main class you use to interact with ``sunspear``
+    """
     def __init__(self, backend, **kwargs):
         self._backend = backend
 

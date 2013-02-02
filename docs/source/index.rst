@@ -34,6 +34,15 @@ API Guide
     :maxdepth: 2
 
     api/clients
+    api/backends
+
+References
+----------
+
+.. toctree::
+    :maxdepth: 1
+
+    license/index
 
 Indices and tables
 ==================
