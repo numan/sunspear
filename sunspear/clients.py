@@ -19,24 +19,23 @@ under the License.
 
 class SunspearClient(object):
     def __init__(self, backend, **kwargs):
-
         self._backend = backend
 
     def clear_all(self):
         """
-        Deletes all activity stream data from riak
+        Deletes all activity stream data
         """
         self._backend.clear_all()
 
     def clear_all_objects(self):
         """
-        Deletes all objects data from riak
+        Deletes all objects data
         """
         self._backend.clear_all_objects()
 
     def clear_all_activities(self):
         """
-        Deletes all activities data from riak
+        Deletes all activities data
         """
         self._backend.clear_all_activities()
 

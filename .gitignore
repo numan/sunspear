@@ -7,3 +7,4 @@
 /dist
 /build
 .ropeproject/**
+docs/build/html/**
