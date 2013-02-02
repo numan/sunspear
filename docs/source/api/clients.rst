@@ -1,6 +1,12 @@
+.. ref-clients
+
+================
 Sunspear Client
 ================
 
-.. autoclass:: sunspear.clients.SunspearClient
+sunspear.clients
+-----------------
+
+.. automodule:: sunspear.clients
    :members:
-   :noindex:
+   :undoc-members:

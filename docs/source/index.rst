@@ -19,6 +19,8 @@ User Guide
 .. toctree::
    :maxdepth: 2
 
+   userguide/quickstart
+
 Developer Guide
 ---------------
 

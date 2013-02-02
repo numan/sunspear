@@ -1,22 +1,3 @@
-"""
-Copyright 2013 Numan Sachwani <numan856@gmail.com>
-
-This file is provided to you under the Apache License,
-Version 2.0 (the "License"); you may not use this file
-except in compliance with the License.  You may obtain
-a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
-"""
-
-
 class SunspearClient(object):
     def __init__(self, backend, **kwargs):
         self._backend = backend
@@ -128,7 +109,7 @@ class SunspearClient(object):
 
     def get_objects(self, object_ids=[]):
         """
-        Gets a list of objects.
+        Gets a list of objects by object_ids.
 
         :type object_ids: list
         :param object_ids: a list of objects
@@ -137,8 +118,8 @@ class SunspearClient(object):
 
     def get_activities(self, activity_ids=[], **kwargs):
         """
-        Gets a list of activities. You can also group activities by providing a list of attributes to group
-        by.
+        Gets a list of activities. Specific backends may support other arguments. Please
+        see reference of the specific backends to see all ``kwargs`` supported.
 
         :type activity_ids: list
         :param activity_ids: The list of activities you want to retrieve
@@ -146,4 +127,9 @@ class SunspearClient(object):
         return self._backend.get_activity(activity_ids=activity_ids, **kwargs)
 
     def get_backend(self):
+        """
+        The backend the client was initialized with.
+
+        :return: reference to the backend the client was initialized with.
+        """
         return self._backend
