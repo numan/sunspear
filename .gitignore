@@ -8,3 +8,4 @@
 /build
 .ropeproject/**
 docs/build/html/**
+docs/build/doctrees/**
