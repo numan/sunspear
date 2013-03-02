@@ -26,7 +26,7 @@ setup(
         'protobuf==2.4.1',
     ],
     dependency_links=[
-        'https://github.com/numan/nydus/tarball/0.10.4#egg=nydus-0.10.4',
+        'https://github.com/disqus/nydus/tarball/master#egg=nydus-0.10.4',
     ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
     tests_require=tests_require,
