@@ -25,9 +25,6 @@ setup(
         'python-dateutil==1.5',
         'protobuf==2.4.1',
     ],
-    dependency_links=[
-        'https://github.com/disqus/nydus/tarball/master#egg=nydus-0.10.4',
-    ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
     tests_require=tests_require,
     extras_require={"test": tests_require, "nosetests": tests_require},
