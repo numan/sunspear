@@ -17,7 +17,7 @@ User Guide
 -----------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    userguide/introduction
    userguide/quickstart
@@ -26,13 +26,13 @@ Developer Guide
 ---------------
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
 
 API Guide
 ----------
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
 
     api/clients
     api/backends
