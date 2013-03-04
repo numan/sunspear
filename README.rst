@@ -1,7 +1,7 @@
 Sunspear
 ========
 .. image:: https://secure.travis-ci.org/numan/sunspear.png?branch=master
-        :target: https://secure.travis-ci.org/numan/sunspear
+        :target: https://travis-ci.org/numan/sunspear
 
 Overview
 --------
