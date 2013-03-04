@@ -25,6 +25,7 @@ from nydus.db import create_cluster
 
 from riak.transports import RiakPbcTransport
 
+import uuid
 import copy
 import time
 import datetime
@@ -666,5 +667,6 @@ class RiakBackend(BaseBackend):
 
         :return: a new id
         """
-        now = datetime.datetime.utcnow()
-        return str(long(calendar.timegm(now.utctimetuple()) - calendar.timegm(self.custom_epoch.utctimetuple())) + now.microsecond)
+        return uuid.uuid1().hex
+        # now = datetime.datetime.utcnow()
+        # return str(long(calendar.timegm(now.utctimetuple()) - calendar.timegm(self.custom_epoch.utctimetuple())) + now.microsecond)
