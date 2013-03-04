@@ -9,7 +9,7 @@ Welcome to Sunspear's documentation!
 Sunspear in a library for storing activity streams. It is an implementation of the 
 `JSON Activity Stream 1.0 <http://activitystrea.ms/specs/json/1.0/>`_ specification.
 Currently, Sunspear only supports ``Riak`` as a storage backend, however, it is modular
-enough to define custom backend.
+enough to allow the use of custom backend.
 
 Contents:
 
