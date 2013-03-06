@@ -27,7 +27,6 @@ from riak.transports import RiakPbcTransport
 
 import uuid
 import copy
-import time
 import datetime
 import calendar
 
@@ -658,7 +657,11 @@ class RiakBackend(BaseBackend):
         return this_id
 
     def _get_timestamp(self):
-        return long(round(time.time() * 1000))
+        """
+        returns a unix timestamp representing the ``datetime`` object
+        """
+        dt_obj = datetime.datetime.utcnow()
+        return long((calendar.timegm(dt_obj.utctimetuple()) * 1000)) + (dt_obj.microsecond / 1000)
 
     def get_new_id(self):
         """
