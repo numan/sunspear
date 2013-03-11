@@ -30,6 +30,23 @@ class TestPropertyAggregator(object):
         actual = aggregator.process(data_dict, data_dict, [aggregator])
         eq_(actual, expected)
 
+    def test_process_with_regex(self):
+        group_by_attributes = ['b']
+        aggregator = PropertyAggregator(properties=group_by_attributes, activity_key='b', activity_value=r"foo|bar")
+
+        data_dict = [{'a': 1, 'b': 2, 'c': {'d': 3, 'e': 4}
+        }, {'a': 3, 'b': 2,  'c': {'d': 5, 'e': 4}
+        }, {'a': 4, 'b': "bar", 'c': {'d': 6, 'e': 4}
+        }, {'a': 5, 'b': "bar", 'c': {'d': 6, 'e': 4}
+        }]
+        expected = [
+            {'a': 1, 'c': {'e': 4, 'd': 3}, 'b': 2}, {'a': 3, 'c': {'e': 4, 'd': 5}, 'b': 2},
+            {'a': [4, 5], 'c': [{'e': 4, 'd': 6}, {'e': 4, 'd': 6}], 'b': 'bar',
+                'grouped_by_attributes': ['b'], 'grouped_by_values': ['bar']}
+        ]
+        actual = aggregator.process(data_dict, data_dict, [aggregator])
+        eq_(actual, expected)
+
     def test__aggregate_activities_with_activity_key_filter(self):
         aggregator = PropertyAggregator(activity_key='b', activity_value=3)
         group_by_attributes = ['b']
