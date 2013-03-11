@@ -7,8 +7,10 @@ import copy
 
 
 class PropertyAggregator(BaseAggregator):
-    def __init__(self, properties=[], *args, **kwargs):
+    def __init__(self, properties=[], activity_key=None, activity_value=None, *args, **kwargs):
         self._properties = properties
+        self._activity_key = activity_key
+        self._activity_value = activity_value
 
     def process(self, current_activities, original_activities, aggregators, *args, **kwargs):
         """
@@ -60,6 +62,10 @@ class PropertyAggregator(BaseAggregator):
         def _callback(activity):
             activity_dict = dotdictify(activity)
             matching_attributes = []
+
+            if self._activity_key is not None and self._activity_value is not None:
+                if activity_dict.get(self._activity_key) != self._activity_value:
+                    return [activity]
 
             for attribute in group_by_attributes:
                 value = activity_dict.get(attribute)
