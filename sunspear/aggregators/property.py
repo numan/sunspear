@@ -4,13 +4,14 @@ from sunspear.lib.dotdict import dotdictify
 from itertools import groupby
 
 import copy
+import re
 
 
 class PropertyAggregator(BaseAggregator):
     def __init__(self, properties=[], activity_key=None, activity_value=None, *args, **kwargs):
         self._properties = properties
-        self._activity_key = activity_key
-        self._activity_value = activity_value
+        self._activity_key = activity_key if activity_key is not None else ""
+        self._activity_value = activity_value if activity_value is not None else ""
 
     def process(self, current_activities, original_activities, aggregators, *args, **kwargs):
         """
@@ -63,8 +64,8 @@ class PropertyAggregator(BaseAggregator):
             activity_dict = dotdictify(activity)
             matching_attributes = []
 
-            if self._activity_key is not None and self._activity_value is not None:
-                if activity_dict.get(self._activity_key) != self._activity_value:
+            if self._activity_key and self._activity_value:
+                if re.match(str(self._activity_value), str(activity_dict.get(self._activity_key))) is None:
                     return [activity]
 
             for attribute in group_by_attributes:
