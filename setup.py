@@ -20,7 +20,7 @@ setup(
     packages=find_packages(exclude=['tests']),
     test_suite='nose.collector',
     install_requires=[
-        'nydus==0.10.4',
+        'nydus==0.10.5',
         'riak==1.5.1',
         'python-dateutil==1.5',
         'protobuf==2.4.1',
