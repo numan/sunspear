@@ -306,8 +306,9 @@ class RiakBackend(BaseBackend):
     def activity_update(self, activity, **kwargs):
         return self.activity_create(activity, **kwargs)
 
-    def activity_get(self, activity_ids=[], raw_filter="", filters={}, include_public=False, \
-        audience_targeting={}, aggregation_pipeline=[], **kwargs):
+    def activity_get(
+        self, activity_ids=[], raw_filter="", filters={}, include_public=False,
+            audience_targeting={}, aggregation_pipeline=[], **kwargs):
         """
         Gets a list of activities. You can also group activities by providing a list of attributes to group
         by.
@@ -337,7 +338,8 @@ class RiakBackend(BaseBackend):
         if not activity_ids:
             return []
 
-        activities = self._get_many_activities(activity_ids, raw_filter=raw_filter, filters=filters, include_public=include_public, \
+        activities = self._get_many_activities(
+            activity_ids, raw_filter=raw_filter, filters=filters, include_public=include_public,
             audience_targeting=audience_targeting)
 
         activities = self.dehydrate_activities(activities)
@@ -350,21 +352,24 @@ class RiakBackend(BaseBackend):
     def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="", **kwargs):
         if sub_activity_verb.lower() not in SUB_ACTIVITY_MAP:
             raise Exception('Verb not supported')
-        return super(RiakBackend, self).create_sub_activity(activity, actor, content, extra=extra,\
+        return super(RiakBackend, self).create_sub_activity(
+            activity, actor, content, extra=extra,
             sub_activity_verb=sub_activity_verb, **kwargs)
 
-    def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="",
-        **kwargs):
+    def sub_activity_create(
+        self, activity, actor, content, extra={}, sub_activity_verb="",
+            **kwargs):
         sub_activity_model = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][0]
         sub_activity_attribute = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][1]
         object_type = kwargs.get('object_type', sub_activity_verb)
 
         activity_id = self._extract_id(activity)
-        activity_model = Activity(self.get_activity(activity_id, **kwargs)[0], backend=self)
+        activity_model = Activity(self._activities.get(key=activity_id).get_data(), backend=self)
 
         sub_activity_obj, original_activity_obj = activity_model\
-            .get_parsed_sub_activity_dict(actor=actor, content=content, verb=sub_activity_verb,\
-                object_type=object_type, collection=sub_activity_attribute,\
+            .get_parsed_sub_activity_dict(
+                actor=actor, content=content, verb=sub_activity_verb,
+                object_type=object_type, collection=sub_activity_attribute,
                 activity_class=sub_activity_model, extra=extra)
 
         sub_activity_obj = self.create_activity(sub_activity_obj, activity_id=original_activity_obj['id'])
@@ -567,7 +572,7 @@ class RiakBackend(BaseBackend):
 
     def _dehydrate_object_keys(self, activity, objects_dict, skip_sub_activities=False):
         for object_key in Model._object_fields + Activity._direct_audience_targeting_fields \
-            + Activity._indirect_audience_targeting_fields:
+                + Activity._indirect_audience_targeting_fields:
             if object_key not in activity:
                 continue
             activity_objects = activity.get(object_key)

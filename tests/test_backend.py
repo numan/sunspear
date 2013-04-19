@@ -129,6 +129,37 @@ class TestRiakBackend(object):
         eq_(act_obj_dict['actor'], actor)
         eq_(act_obj_dict['object'], obj)
 
+    def test_create_activity_stored_as_sparse(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        object_id = '4353'
+        target_id = '2133'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+        target = {"objectType": "something", "id": target_id, "published": published_time}
+
+        self._backend.create_activity(
+            {
+                "id": 5,
+                "title": "Stream Item",
+                "verb": "post",
+                "actor": actor,
+                "object": obj,
+                "target": target,
+            }
+        )
+
+        riak_obj = self._backend._activities.get('5')
+        riak_obj_data = riak_obj.get_data()
+        ok_(isinstance(riak_obj_data.get("target"), basestring))
+
     def test_delete_activity(self):
         self._backend._activities.get('5').delete()
 
@@ -204,12 +235,16 @@ class TestRiakBackend(object):
             "stuff": "this"
         }
 
-        act_obj = self._backend.create_activity({"id": 5, "title": "Stream Item",
-            "verb": "post",
-            "actor": actor,
-            "object": obj,
-            "other": other
-        })
+        act_obj = self._backend.create_activity(
+            {
+                "id": 5,
+                "title": "Stream Item",
+                "verb": "post",
+                "actor": actor,
+                "object": obj,
+                "other": other
+            }
+        )
         act_obj_dict = act_obj
 
         eq_(act_obj_dict['actor'], actor)
@@ -267,7 +302,7 @@ class TestRiakBackend(object):
             actor['content'] = "Some new content that wasn't there before."
             self._backend.create_activity({"id": 6, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj, 'something': self._backend})
             ok_(False)
-        except TypeError, e:
+        except TypeError:
             ok_(True)
             ok_('content' not in self._backend._objects.get(actor["id"]).get_data())
 
@@ -574,7 +609,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, "This is a reply.",\
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "This is a reply.",
             sub_activity_verb='reply')
 
         eq_(reply_activity_dict['actor']['id'], actor2_id)
@@ -584,6 +620,37 @@ class TestRiakBackend(object):
         eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
         eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
         eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
+
+    def test_create_reply_maintains_dehydrate_state(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
+
+        #now create a reply for the activity
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "This is a reply.",
+            sub_activity_verb='reply')
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
 
     def test_create_reply_with_extra_data(self):
         self._backend._activities.get('5').delete()
@@ -605,7 +672,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, "This is a reply.", extra=extra,\
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "This is a reply.", extra=extra,
             sub_activity_verb='reply')
 
         eq_(extra['published'].strftime('%Y-%m-%dT%H:%M:%S') + "Z", reply_activity_dict['published'])
@@ -649,7 +717,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, reply_dict,\
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, reply_dict,
             sub_activity_verb='reply')
 
         eq_(reply_activity_dict['actor']['id'], actor2_id)
@@ -660,6 +729,41 @@ class TestRiakBackend(object):
         eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
         eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
         eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
+
+    def test_create_like_maintains_dehydrate_state(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '4321'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(actor2_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        actor2 = {"objectType": "something", "id": actor2_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        self._backend.create_obj(actor2)
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
+
+        #now create a reply for the activity
+        like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "",
+            sub_activity_verb='like')
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
 
     def test_create_like(self):
         self._backend._activities.get('5').delete()
@@ -684,7 +788,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, "",\
+        like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "",
             sub_activity_verb='like')
 
         eq_(like_activity_dict['actor']['id'], actor2_id)
@@ -732,6 +837,73 @@ class TestRiakBackend(object):
         ok_('likes' not in returned_updated_activity)
         ok_('likes' not in activity_obj_dict)
 
+    def test_delete_like_maintains_dehydrated_state(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '4321'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
+            5, actor2_id, "", sub_activity_verb='like')
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
+
+        #now delete the like and make sure everything is ok:
+        self._backend.sub_activity_delete(like_activity_dict['id'], 'like')
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
+
+    def test_reply_delete_maintains_dehydrated_state(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "This is a reply.", sub_activity_verb='reply')
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
+
+        #now delete the reply and make sure everything is ok:
+        self._backend.sub_activity_delete(
+            reply_activity_dict['id'], 'reply')
+
+        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        ok_(isinstance(riak_obj_data.get("actor"), basestring))
+        ok_(isinstance(riak_obj_data.get("object"), basestring))
+
     def test_reply_delete(self):
         self._backend._activities.get('5').delete()
 
@@ -751,8 +923,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, "This is a reply.",\
-            sub_activity_verb='reply')
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "This is a reply.", sub_activity_verb='reply')
 
         eq_(reply_activity_dict['actor']['id'], actor['id'])
         eq_(reply_activity_dict['verb'], 'reply')
@@ -763,8 +935,8 @@ class TestRiakBackend(object):
         eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
 
         #now delete the reply and make sure everything is ok:
-        returned_updated_activity = self._backend.sub_activity_delete(reply_activity_dict['id'],\
-            'reply')
+        returned_updated_activity = self._backend.sub_activity_delete(
+            reply_activity_dict['id'], 'reply')
         activity_obj_dict = self._backend._activities.get('5').get_data()
 
         ok_('replies' not in returned_updated_activity)
