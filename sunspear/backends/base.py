@@ -3,6 +3,7 @@ from sunspear.exceptions import (SunspearDuplicateEntryException, SunspearInvali
     SunspearInvalidObjectException)
 
 import uuid
+import copy
 
 __all__ = ('BaseBackend', 'SUB_ACTIVITY_MAP')
 
@@ -70,9 +71,11 @@ class BaseBackend(object):
         else:
             activity['id'] = self.get_new_id()
 
+        activity_copy = copy.copy(activity)
+
         objs_created = []
         objs_modified = []
-        for key, value in activity.items():
+        for key, value in activity_copy.items():
             if key in Activity._object_fields and isinstance(value, dict):
                 if self.obj_exists(value):
                     previous_value = self.get_obj([self._extract_id(value)])[0]
@@ -94,7 +97,7 @@ class BaseBackend(object):
                 activity[key] = value["id"]
 
             if key in Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields\
-                and value:
+                    and value:
                 for i, target_obj in enumerate(value):
                     if isinstance(target_obj, dict):
                         previous_value = self.get_obj(target_obj)
