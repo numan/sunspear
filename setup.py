@@ -10,7 +10,7 @@ tests_require=[
 setup(
     name="sunspear",
     license='Apache License 2.0',
-    version="0.1.1",
+    version="0.1.2",
     description="Activity streams backed by Riak.",
     zip_safe=False,
     long_description=open('README.rst', 'r').read(),
