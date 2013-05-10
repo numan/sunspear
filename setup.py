@@ -10,7 +10,7 @@ tests_require=[
 setup(
     name="sunspear",
     license='Apache License 2.0',
-    version="0.1.2",
+    version="0.1.3",
     description="Activity streams backed by Riak.",
     zip_safe=False,
     long_description=open('README.rst', 'r').read(),
@@ -20,7 +20,7 @@ setup(
     packages=find_packages(exclude=['tests']),
     test_suite='nose.collector',
     install_requires=[
-        'nydus==0.10.5',
+        'nydus==0.10.6',
         'riak>=1.5.1',
         'python-dateutil==1.5',
         'protobuf==2.4.1',
