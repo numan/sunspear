@@ -374,7 +374,7 @@ class RiakBackend(BaseBackend):
 
         sub_activity_obj = self.create_activity(sub_activity_obj, activity_id=original_activity_obj['id'])
 
-        original_activity_obj[sub_activity_attribute]['items'][0]['actor'] = sub_activity_obj['actor']
+        original_activity_obj[sub_activity_attribute]['items'][0]['actor'] = sub_activity_obj['actor']['id']
         original_activity_obj[sub_activity_attribute]['items'][0]['id'] = sub_activity_obj['id']
         original_activity_obj[sub_activity_attribute]['items'][0]['published'] = sub_activity_obj['published']
         original_activity_obj[sub_activity_attribute]['items'][0]['object']['id'] = sub_activity_obj['id']

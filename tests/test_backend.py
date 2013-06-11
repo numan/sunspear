@@ -621,6 +621,49 @@ class TestRiakBackend(object):
         eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
         eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
 
+    def test_create_reply_change_actor(self):
+        self._backend._activities.get('5').delete()
+
+        actor_id = '1234'
+        actor2_id = '1234'
+        object_id = '4353'
+        #make sure these 2 keys don't exist anymore
+        self._backend._objects.get(actor_id).delete()
+        self._backend._objects.get(object_id).delete()
+
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+        obj = {"objectType": "something", "id": object_id, "published": published_time}
+
+        #create the activity
+        self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
+
+        #now create a reply for the activity
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "This is a reply.",
+            sub_activity_verb='reply')
+
+        eq_(reply_activity_dict['actor']['id'], actor2_id)
+        eq_(reply_activity_dict['verb'], 'reply')
+
+        eq_(activity_obj_dict['replies']['totalItems'], 1)
+        eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
+        eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
+        eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
+        eq_(activity_obj_dict['replies']['items'][0]['actor'].get("displayName"), None)
+
+        #change the actor of the reply and confirm it changes
+        actor['displayName'] = 'foobar'
+        self._backend.update_obj(actor)
+
+        activity_obj_dict = self._backend.get_activity(activity_ids=[activity_obj_dict['id']])[0]
+        eq_(activity_obj_dict['replies']['totalItems'], 1)
+        eq_(activity_obj_dict['replies']['items'][0]['object']['id'], reply_activity_dict['id'])
+        eq_(activity_obj_dict['replies']['items'][0]['verb'], 'reply')
+        eq_(activity_obj_dict['replies']['items'][0]['actor']['id'], actor2_id)
+        eq_(activity_obj_dict['replies']['items'][0]['actor']['displayName'], 'foobar')
+
     def test_create_reply_maintains_dehydrate_state(self):
         self._backend._activities.get('5').delete()
 
@@ -819,8 +862,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(5, actor2_id, "",\
-            sub_activity_verb='like')
+        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
+            5, actor2_id, "", sub_activity_verb='like')
 
         eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
@@ -961,7 +1004,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_dict, activity_obj_dict = self._backend.create_sub_activity(5, actor2_id, "This is a reply.",\
+        reply_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
+            5, actor2_id, "This is a reply.",
             sub_activity_verb='reply')
 
         eq_(reply_activity_dict['actor']['id'], actor['id'])
@@ -997,7 +1041,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(5, actor2_id, "",\
+        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
+            5, actor2_id, "",
             sub_activity_verb='like')
 
         eq_(like_activity_dict['actor']['id'], actor2_id)

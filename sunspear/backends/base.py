@@ -331,6 +331,25 @@ class BaseBackend(object):
 
     def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="",
         sub_activity_attribute="", **kwargs):
+        """
+        Creates a new sub-activity as a child of ``activity``.
+
+        :type activity: a string or dict
+        :param activity: the activity we want to create the sub-item for
+        :type actor: a string or dict
+        :param actor: the ``object`` creating the sub-activity
+        :type content: a string or dict
+        :param content: a string or an ``object`` representing the content of the sub-activity
+        :type extra: dict
+        :param extra: additional data the is to be included as part of the ``sub-activity`` activity
+        :type sub_activity_verb: string
+        :param sub_activity_verb: the verb of the sub activity
+        :type sub_activity_attribute: string
+        :param sub_activity_attribute: the attribute in the activity the ``sub-activity`` will be a part of
+
+        :return: a tuple containing the new sub activity and the original activity
+            the sub activity was created for.
+        """
         raise NotImplementedError()
 
     def delete_sub_activity(self, sub_activity, sub_activity_verb, **kwargs):
