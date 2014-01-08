@@ -132,12 +132,13 @@ JS_REDUCE_OBJS = """
 class RiakBackend(BaseBackend):
     custom_epoch = datetime.datetime(month=1, day=1, year=2013)
 
-    def __init__(self, host_list=[], defaults={}, objects_bucket_name="objects",\
-        activities_bucket_name="activities", **kwargs):
+    def __init__(
+        self, host_list=[], defaults={}, objects_bucket_name="objects",
+            activities_bucket_name="activities", **kwargs):
 
         sunspear_defaults = {
-         'transport_options': {"max_attempts": 4},
-         'transport_class': RiakPbcTransport,
+            'transport_options': {"max_attempts": 4},
+            'transport_class': RiakPbcTransport,
         }
 
         sunspear_defaults.update(defaults)
@@ -153,8 +154,26 @@ class RiakBackend(BaseBackend):
             'hosts': hosts,
         })
 
+        r_value = kwargs.get("r")
+        w_value = kwargs.get("w")
+        dw_value = kwargs.get("dw")
+        pr_value = kwargs.get("pr")
+        pw_value = kwargs.get("pw")
+
         self._objects = self._riak_backend.bucket(objects_bucket_name)
         self._activities = self._riak_backend.bucket(activities_bucket_name)
+
+        self._objects.set_r(r_value)
+        self._objects.set_w(w_value)
+        self._objects.set_dw(dw_value)
+        self._objects.set_pr(pr_value)
+        self._objects.set_pw(pw_value)
+
+        self._activities.set_r(r_value)
+        self._activities.set_w(w_value)
+        self._activities.set_dw(dw_value)
+        self._activities.set_pr(pr_value)
+        self._activities.set_pw(pw_value)
 
     def clear_all(self, **kwargs):
         """
