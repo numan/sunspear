@@ -21,7 +21,7 @@ setup(
     test_suite='nose.collector',
     install_requires=[
         'nydus==0.10.6',
-        'riak>=1.5.1',
+        'riak==1.5.1',
         'python-dateutil==1.5',
         'protobuf==2.4.1',
     ],
