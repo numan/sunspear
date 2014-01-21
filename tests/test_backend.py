@@ -10,8 +10,8 @@ from sunspear.backends.riak import RiakBackend
 import datetime
 
 riak_connection_options = {
-    "host_list": [{'port': 8087}],
-    "defaults": {'host': '127.0.0.1'},
+    "nodes": [{'host': '127.0.0.1', 'pb_port': 8087}],
+    # "nodes": [{'host': '127.0.0.1', 'pb_port': 10017}, {'host': '127.0.0.1', 'pb_port': 10027}, {'host': '127.0.0.1', 'pb_port': 10037}],
 }
 
 
@@ -26,7 +26,7 @@ class TestRiakBackend(object):
 
         actstream_obj = self._backend.create_obj(obj)
 
-        ok_(self._backend._objects.get(key=obj['id']).exists())
+        ok_(self._backend._objects.get(key=obj['id']).exists)
         eq_(actstream_obj, obj)
 
     def test_get_obj(self):
@@ -40,14 +40,26 @@ class TestRiakBackend(object):
         self._backend._objects.get(obj3_id).delete()
         self._backend._objects.get(obj4_id).delete()
 
-        obj1 = {"objectType": "Hello", "id": obj1_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
-        obj2 = {"objectType": "Hello", "id": obj2_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
-        obj3 = {"objectType": "Hello", "id": obj3_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
-        obj4 = {"objectType": "Hello", "id": obj4_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
+        obj1 = {
+            "objectType": "Hello",
+            "id": obj1_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
+        obj2 = {
+            "objectType": "Hello",
+            "id": obj2_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
+        obj3 = {
+            "objectType": "Hello",
+            "id": obj3_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
+        obj4 = {
+            "objectType": "Hello",
+            "id": obj4_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
 
         self._backend.create_obj(obj1)
         self._backend.create_obj(obj2)
@@ -157,7 +169,7 @@ class TestRiakBackend(object):
         )
 
         riak_obj = self._backend._activities.get('5')
-        riak_obj_data = riak_obj.get_data()
+        riak_obj_data = riak_obj.data
         ok_(isinstance(riak_obj_data.get("target"), basestring))
 
     def test_delete_activity(self):
@@ -181,7 +193,7 @@ class TestRiakBackend(object):
         eq_(act_obj_dict['object'], obj)
 
         self._backend.delete_activity(act_obj_dict)
-        ok_(not self._backend._activities.get(key=act_obj_dict['id']).exists())
+        ok_(not self._backend._activities.get(key=act_obj_dict['id']).exists)
 
     def test_create_activity_with_targeted_audience(self):
         self._backend._activities.get('5').delete()
@@ -266,16 +278,18 @@ class TestRiakBackend(object):
         actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
         obj = {"objectType": "something", "id": object_id, "published": published_time}
 
-        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+        riak_obj = self._backend._objects.new(key=actor["id"])
+        riak_obj.data = actor
+        riak_obj.store()
 
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
-        ok_(self._backend._objects.get(obj["id"]).exists())
-        ok_('content' not in self._backend._objects.get(actor["id"]).get_data())
+        ok_(self._backend._objects.get(obj["id"]).exists)
+        ok_('content' not in self._backend._objects.get(actor["id"]).data)
 
         actor['content'] = "Some new content that wasn't there before."
         self._backend.create_activity({"id": 6, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
-        ok_(self._backend._objects.get(obj["id"]).exists())
-        eq_(actor['content'], self._backend._objects.get(actor["id"]).get_data()['content'])
+        ok_(self._backend._objects.get(obj["id"]).exists)
+        eq_(actor['content'], self._backend._objects.get(actor["id"]).data['content'])
 
     def test_create_activity_with_exception_rollsback_objects(self):
         self._backend._activities.get('5').delete()
@@ -292,11 +306,13 @@ class TestRiakBackend(object):
         actor = {"objectType": "something", "id": actor_id, "published": '2012-07-05T12:00:00Z'}
         obj = {"objectType": "something", "id": object_id, "published": published_time}
 
-        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
+        riak_obj = self._backend._objects.new(key=actor["id"])
+        riak_obj.data = actor
+        riak_obj.store()
 
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
-        ok_(self._backend._objects.get(obj["id"]).exists())
-        ok_('content' not in self._backend._objects.get(actor["id"]).get_data())
+        ok_(self._backend._objects.get(obj["id"]).exists)
+        ok_('content' not in self._backend._objects.get(actor["id"]).data)
 
         try:
             actor['content'] = "Some new content that wasn't there before."
@@ -304,7 +320,7 @@ class TestRiakBackend(object):
             ok_(False)
         except TypeError:
             ok_(True)
-            ok_('content' not in self._backend._objects.get(actor["id"]).get_data())
+            ok_('content' not in self._backend._objects.get(actor["id"]).data)
 
     def test_create_activity_with_object_already_exists_shouldnt_throw_exception(self):
         actor_id = '1234'
@@ -320,11 +336,13 @@ class TestRiakBackend(object):
         actor = {"objectType": "something", "id": actor_id, "published": published_time}
         obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
 
-        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
+        riak_obj = self._backend._objects.new(key=obj["id"])
+        riak_obj.data = obj
+        riak_obj.store()
 
         self._backend.create_activity({"id": activity_id, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
-        ok_(self._backend._objects.get(actor["id"]).exists())
+        ok_(self._backend._objects.get(actor["id"]).exists)
 
     def test__get_many_activities(self):
         self._backend._activities.get('1').delete()
@@ -444,7 +462,8 @@ class TestRiakBackend(object):
         }
         """
 
-        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5'], raw_filter=raw_filter, \
+        activities = self._backend._get_many_activities(
+            activity_ids=['1', '2', '3', '4', '5'], raw_filter=raw_filter,
             filters={'verb': ['type3'], 'actor': ['1237', '1238']})
 
         eq_(2, len(activities))
@@ -472,12 +491,25 @@ class TestRiakBackend(object):
         obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
         obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
 
-        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
-        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
-        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
+        riak_obj1 = self._backend._objects.new(key=actor["id"])
+        riak_obj1.data = actor
+        riak_obj1.store()
 
-        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
-        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
+        riak_obj2 = self._backend._objects.new(key=actor2["id"])
+        riak_obj2.data = actor2
+        riak_obj2.store()
+
+        riak_obj3 = self._backend._objects.new(key=actor3["id"])
+        riak_obj3.data = actor3
+        riak_obj3.store()
+
+        riak_obj4 = self._backend._objects.new(key=obj["id"])
+        riak_obj4.data = obj
+        riak_obj4.store()
+
+        riak_obj5 = self._backend._objects.new(key=obj2["id"])
+        riak_obj5.data = obj2
+        riak_obj5.store()
 
         activities = [
             {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor_id, actor_id2], "object": object_id},
@@ -511,7 +543,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 7, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678"})
         self._backend.create_activity({"id": 8, "title": "Stream Item 5", "verb": "type5", "actor": "1234", "object": "5678"})
 
-        activities = self._backend._get_many_activities(activity_ids=['1', '2', '3', '4', '5', '6', '7', '8'], \
+        activities = self._backend._get_many_activities(
+            activity_ids=['1', '2', '3', '4', '5', '6', '7', '8'],
             include_public=True, audience_targeting={'to': ['100', '105'], 'bto': ['105']})
 
         eq_(len(activities), 6)
@@ -570,12 +603,25 @@ class TestRiakBackend(object):
         obj = {"objectType": "something", "id": object_id, "published": '2012-07-05T12:00:00Z'}
         obj2 = {"objectType": "something", "id": object_id2, "published": '2012-07-05T12:00:00Z'}
 
-        self._backend._objects.new(key=actor["id"]).set_data(actor).store()
-        self._backend._objects.new(key=actor2["id"]).set_data(actor2).store()
-        self._backend._objects.new(key=actor3["id"]).set_data(actor3).store()
+        riak_obj1 = self._backend._objects.new(key=actor["id"])
+        riak_obj1.data = actor
+        riak_obj1.store()
 
-        self._backend._objects.new(key=obj["id"]).set_data(obj).store()
-        self._backend._objects.new(key=obj2["id"]).set_data(obj2).store()
+        riak_obj2 = self._backend._objects.new(key=actor2["id"])
+        riak_obj2.data = actor2
+        riak_obj2.store()
+
+        riak_obj3 = self._backend._objects.new(key=actor3["id"])
+        riak_obj3.data = actor3
+        riak_obj3.store()
+
+        riak_obj4 = self._backend._objects.new(key=obj["id"])
+        riak_obj4.data = obj
+        riak_obj4.store()
+
+        riak_obj5 = self._backend._objects.new(key=obj2["id"])
+        riak_obj5.data = obj2
+        riak_obj5.store()
 
         activities = [
             {"id": 1, "title": "Stream Item", "verb": "post", "actor": [actor_id, actor_id2], "object": object_id, 'to': [actor_id, actor_id2], 'cc': [actor_id3]},
@@ -682,7 +728,7 @@ class TestRiakBackend(object):
         #create the activity
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
@@ -691,7 +737,7 @@ class TestRiakBackend(object):
             5, actor2_id, "This is a reply.",
             sub_activity_verb='reply')
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
@@ -795,7 +841,7 @@ class TestRiakBackend(object):
         #create the activity
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
@@ -804,7 +850,7 @@ class TestRiakBackend(object):
             5, actor2_id, "",
             sub_activity_verb='like')
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
@@ -875,7 +921,7 @@ class TestRiakBackend(object):
 
         #now delete the like and make sure everything is ok:
         returned_updated_activity = self._backend.sub_activity_delete(like_activity_dict['id'], 'like')
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        activity_obj_dict = self._backend._activities.get('5').data
 
         ok_('likes' not in returned_updated_activity)
         ok_('likes' not in activity_obj_dict)
@@ -902,14 +948,14 @@ class TestRiakBackend(object):
         like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
             5, actor2_id, "", sub_activity_verb='like')
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
         #now delete the like and make sure everything is ok:
         self._backend.sub_activity_delete(like_activity_dict['id'], 'like')
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
@@ -935,7 +981,7 @@ class TestRiakBackend(object):
         reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
             5, actor2_id, "This is a reply.", sub_activity_verb='reply')
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
@@ -943,7 +989,7 @@ class TestRiakBackend(object):
         self._backend.sub_activity_delete(
             reply_activity_dict['id'], 'reply')
 
-        riak_obj_data = self._backend._activities.get(key="5").get_data()
+        riak_obj_data = self._backend._activities.get(key="5").data
         ok_(isinstance(riak_obj_data.get("actor"), basestring))
         ok_(isinstance(riak_obj_data.get("object"), basestring))
 
@@ -980,7 +1026,7 @@ class TestRiakBackend(object):
         #now delete the reply and make sure everything is ok:
         returned_updated_activity = self._backend.sub_activity_delete(
             reply_activity_dict['id'], 'reply')
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        activity_obj_dict = self._backend._activities.get('5').data
 
         ok_('replies' not in returned_updated_activity)
         ok_('replies' not in activity_obj_dict)
@@ -1019,8 +1065,8 @@ class TestRiakBackend(object):
         #now delete the activity and make sure the reply gets deleted too:
         self._backend.delete_sub_activity(reply_activity_dict, 'reply')
 
-        ok_(not self._backend._activities.get(reply_activity_dict['id']).exists())
-        ok_(not self._backend._activities.get(activity_obj_dict['replies']['items'][0]['id']).exists())
+        ok_(not self._backend._activities.get(reply_activity_dict['id']).exists)
+        ok_(not self._backend._activities.get(activity_obj_dict['replies']['items'][0]['id']).exists)
 
     def test_delete_sub_activity_like(self):
         self._backend._activities.get('5').delete()
@@ -1056,9 +1102,8 @@ class TestRiakBackend(object):
         #now delete the activity and make sure the like gets deleted too:
         self._backend.delete_sub_activity(like_activity_dict, 'like')
 
-        ok_(not self._backend._activities.get(like_activity_dict['id']).exists())
-        ok_(not self._backend._activities.get(activity_obj_dict['likes']['items'][0]['id']).exists())
-
+        ok_(not self._backend._activities.get(like_activity_dict['id']).exists)
+        ok_(not self._backend._activities.get(activity_obj_dict['likes']['items'][0]['id']).exists)
 
     def test_delete_activity_with_sub_activity(self):
         self._backend._activities.get('5').delete()
@@ -1079,8 +1124,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(5, actor2_id, "",\
-            sub_activity_verb='like')
+        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
+            5, actor2_id, "", sub_activity_verb='like')
 
         eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
@@ -1093,8 +1138,8 @@ class TestRiakBackend(object):
         #now delete the activity and make sure the like gets deleted too:
         self._backend.delete_activity(activity_obj_dict)
 
-        ok_(not self._backend._activities.get(like_activity_dict['id']).exists())
-        ok_(not self._backend._activities.get(activity_obj_dict['id']).exists())
+        ok_(not self._backend._activities.get(like_activity_dict['id']).exists)
+        ok_(not self._backend._activities.get(activity_obj_dict['id']).exists)
 
     def test_get_activities_doesnt_crash_for_missing_activities(self):
         self._backend._activities.get('1').delete()
@@ -1254,23 +1299,69 @@ class TestRiakBackendDehydrate(object):
         self._backend._activities.get(self.activity_id).delete()
         self._backend._activities.get(self.activity_id2).delete()
 
-        self._backend._objects.new(key=self.actor["id"]).set_data(self.actor).store()
-        self._backend._objects.new(key=self.actor2["id"]).set_data(self.actor2).store()
-        self._backend._objects.new(key=self.actor3["id"]).set_data(self.actor3).store()
-        self._backend._objects.new(key=self.obj["id"]).set_data(self.obj).store()
-        self._backend._objects.new(key=self.obj2["id"]).set_data(self.obj2).store()
-        self._backend._objects.new(key=self.obj3["id"]).set_data(self.obj3).store()
-        self._backend._objects.new(key=self.reply_1["id"]).set_data(self.reply_1).store()
-        self._backend._objects.new(key=self.reply_2["id"]).set_data(self.reply_2).store()
-        self._backend._objects.new(key=self.like_1["id"]).set_data(self.like_1).store()
-        self._backend._objects.new(key=self.like_2["id"]).set_data(self.like_2).store()
+        obj1 = self._backend._objects.new(key=self.actor["id"])
+        obj1.data = self.actor
+        obj1.store()
 
-        self._backend._activities.new(key=self.reply_activity_1["id"]).set_data(self.reply_activity_1).store()
-        self._backend._activities.new(key=self.reply_activity_2["id"]).set_data(self.reply_activity_2).store()
-        self._backend._activities.new(key=self.like_activity_1["id"]).set_data(self.like_activity_1).store()
-        self._backend._activities.new(key=self.like_activity_2["id"]).set_data(self.like_activity_2).store()
-        self._backend._activities.new(key=self.activity_1["id"]).set_data(self.activity_1).store()
-        self._backend._activities.new(key=self.activity_2["id"]).set_data(self.activity_2).store()
+        obj2 = self._backend._objects.new(key=self.actor2["id"])
+        obj2.data = self.actor2
+        obj2.store()
+
+        obj3 = self._backend._objects.new(key=self.actor3["id"])
+        obj3.data = self.actor3
+        obj3.store()
+
+        obj4 = self._backend._objects.new(key=self.obj["id"])
+        obj4.data = self.obj
+        obj4.store()
+
+        obj5 = self._backend._objects.new(key=self.obj2["id"])
+        obj5.data = self.obj2
+        obj5.store()
+
+        obj6 = self._backend._objects.new(key=self.obj3["id"])
+        obj6.data = self.obj3
+        obj6.store()
+
+        obj7 = self._backend._objects.new(key=self.reply_1["id"])
+        obj7.data = self.reply_1
+        obj7.store()
+
+        obj8 = self._backend._objects.new(key=self.reply_2["id"])
+        obj8.data = self.reply_2
+        obj8.store()
+
+        obj9 = self._backend._objects.new(key=self.like_1["id"])
+        obj9.data = self.like_1
+        obj9.store()
+
+        obj10 = self._backend._objects.new(key=self.like_2["id"])
+        obj10.data = self.like_2
+        obj10.store()
+
+        obj11 = self._backend._activities.new(key=self.reply_activity_1["id"])
+        obj11.data = self.reply_activity_1
+        obj11.store()
+
+        obj12 = self._backend._activities.new(key=self.reply_activity_2["id"])
+        obj12.data = self.reply_activity_2
+        obj12.store()
+
+        obj13 = self._backend._activities.new(key=self.like_activity_1["id"])
+        obj13.data = self.like_activity_1
+        obj13.store()
+
+        obj14 = self._backend._activities.new(key=self.like_activity_2["id"])
+        obj14.data = self.like_activity_2
+        obj14.store()
+
+        obj15 = self._backend._activities.new(key=self.activity_1["id"])
+        obj15.data = self.activity_1
+        obj15.store()
+
+        obj16 = self._backend._activities.new(key=self.activity_2["id"])
+        obj16.data = self.activity_2
+        obj16.store()
 
     def test_dehydrate_activities_with_in_reply_to(self):
 
@@ -1432,7 +1523,7 @@ class TestIndexes(object):
 
     def test_set_sub_item_indexes(self):
         riak_obj_mock = MagicMock()
-        riak_obj_mock.get_data.return_value = {'verb': 'post', 'actor': '1234', 'object': '5678', 'target': 4333}
+        riak_obj_mock.data = {'verb': 'post', 'actor': '1234', 'object': '5678', 'target': 4333}
 
         self._backend.set_activity_indexes(riak_obj_mock)
 
@@ -1446,7 +1537,7 @@ class TestIndexes(object):
         riak_obj_mock.assert_has_calls(calls, any_order=True)
         eq_(riak_obj_mock.add_index.call_count, 4)
 
-    def test_set_sub_item_indexes(self):
+    def test_set_sub_item_indexes_reply(self):
         riak_obj_mock = MagicMock()
         riak_obj_mock.get_indexes.return_value = []
 
@@ -1459,7 +1550,6 @@ class TestIndexes(object):
         riak_obj_mock.assert_has_calls(calls, any_order=True)
         eq_(riak_obj_mock.add_index.call_count, 1)
 
-
     @raises(SunspearValidationException)
     def test_set_sub_item_indexes_no_activity_id_raises_exception(self):
         riak_obj_mock = MagicMock()
@@ -1467,10 +1557,9 @@ class TestIndexes(object):
 
         self._backend.set_sub_item_indexes(riak_obj_mock)
 
-
     def test_set_general_indexes_not_already_created_set(self):
         riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = []
+        riak_obj_mock.indexes = []
 
         self._backend.set_general_indexes(riak_obj_mock)
 
@@ -1484,7 +1573,7 @@ class TestIndexes(object):
 
     def test_set_general_indexes_already_created(self):
         riak_obj_mock = MagicMock()
-        riak_obj_mock.get_indexes.return_value = 12343214
+        riak_obj_mock.indexes = [('timestamp_int', 12343214,)]
 
         self._backend.set_general_indexes(riak_obj_mock)
 
@@ -1501,10 +1590,10 @@ class TestIndexes(object):
 
         actstream_obj = self._backend.create_obj(obj)
         riak_obj = self._backend._objects.get(key=actstream_obj['id'])
-        riak_obj.get_data()
+        riak_obj.data
 
-        ok_(riak_obj.get_indexes('timestamp_int') != [])
-        ok_(riak_obj.get_indexes('modified_int') != [])
+        ok_(filter(lambda x: x[0] == 'timestamp_int', riak_obj.indexes) != [])
+        ok_(filter(lambda x: x[0] == 'modified_int', riak_obj.indexes) != [])
 
     def test_create_activity_indexes(self):
         self._backend._activities.get('5').delete()
@@ -1524,14 +1613,13 @@ class TestIndexes(object):
         act_obj_dict = act_obj
 
         riak_obj = self._backend._activities.get(key=act_obj_dict['id'])
-        riak_obj.get_data()
+        riak_obj.data
 
-        ok_(riak_obj.get_indexes('timestamp_int') != [])
-        ok_(riak_obj.get_indexes('modified_int') != [])
-        eq_(riak_obj.get_indexes('verb_bin'), ['post'])
-        eq_(riak_obj.get_indexes('actor_bin'), [actor_id])
-        eq_(riak_obj.get_indexes('object_bin'), [object_id])
-
+        ok_(filter(lambda x: x[0] == 'timestamp_int', riak_obj.indexes) != [])
+        ok_(filter(lambda x: x[0] == 'modified_int', riak_obj.indexes) != [])
+        eq_(filter(lambda x: x[0] == 'verb_bin', riak_obj.indexes)[0][1], 'post')
+        eq_(filter(lambda x: x[0] == 'actor_bin', riak_obj.indexes)[0][1], actor_id)
+        eq_(filter(lambda x: x[0] == 'object_bin', riak_obj.indexes)[0][1], object_id)
 
     def test_create_sub_activity_indexes(self):
         self._backend._activities.get('5').delete()
@@ -1556,16 +1644,16 @@ class TestIndexes(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, "",\
-            sub_activity_verb='like')
+        like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "", sub_activity_verb='like')
 
         riak_obj = self._backend._activities.get(key=like_activity_dict['id'])
-        riak_obj.get_data()
+        riak_obj.data
 
-        ok_(riak_obj.get_indexes('timestamp_int') != [])
-        ok_(riak_obj.get_indexes('modified_int') != [])
-        eq_(riak_obj.get_indexes('verb_bin'), ['like'])
-        eq_(riak_obj.get_indexes('actor_bin'), [actor2_id])
-        eq_(riak_obj.get_indexes('object_bin'), [like_activity_dict['object']['id']])
-        eq_(riak_obj.get_indexes('inreplyto_bin'), ['5'])
+        ok_(filter(lambda x: x[0] == 'timestamp_int', riak_obj.indexes) != [])
+        ok_(filter(lambda x: x[0] == 'modified_int', riak_obj.indexes) != [])
+        eq_(filter(lambda x: x[0] == 'verb_bin', riak_obj.indexes)[0][1], 'like')
+        eq_(filter(lambda x: x[0] == 'actor_bin', riak_obj.indexes)[0][1], actor2_id)
+        eq_(filter(lambda x: x[0] == 'object_bin', riak_obj.indexes)[0][1], like_activity_dict['object']['id'])
+        eq_(filter(lambda x: x[0] == 'inreplyto_bin', riak_obj.indexes)[0][1], '5')
 

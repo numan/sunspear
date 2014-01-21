@@ -21,9 +21,7 @@ from sunspear.activitystreams.models import Object, Activity, Model
 from sunspear.exceptions import (SunspearValidationException)
 from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
 
-from nydus.db import create_cluster
-
-from riak.transports import RiakPbcTransport
+from riak import RiakClient
 
 import uuid
 import copy
@@ -133,26 +131,10 @@ class RiakBackend(BaseBackend):
     custom_epoch = datetime.datetime(month=1, day=1, year=2013)
 
     def __init__(
-        self, host_list=[], defaults={}, objects_bucket_name="objects",
+        self, protocol="pbc", nodes=[], objects_bucket_name="objects",
             activities_bucket_name="activities", **kwargs):
 
-        sunspear_defaults = {
-            'transport_options': {"max_attempts": 4},
-            'transport_class': RiakPbcTransport,
-        }
-
-        sunspear_defaults.update(defaults)
-
-        hosts = {}
-        for i, host_settings in enumerate(host_list):
-            hosts[i] = host_settings
-
-        self._riak_backend = create_cluster({
-            'engine': 'nydus.db.backends.riak.Riak',
-            'defaults': sunspear_defaults,
-            'router': 'nydus.db.routers.keyvalue.PartitionRouter',
-            'hosts': hosts,
-        })
+        self._riak_backend = RiakClient(protocol=protocol, nodes=nodes)
 
         r_value = kwargs.get("r")
         w_value = kwargs.get("w")
@@ -188,7 +170,7 @@ class RiakBackend(BaseBackend):
         """
         for key in self._objects.get_keys():
             self._objects.get(key).delete(rw='all', r='all', w='all', dw='all')
-            assert not self._objects.get(key).exists()
+            assert not self._objects.get(key).exists
 
     def clear_all_activities(self, **kwargs):
         """
@@ -196,15 +178,15 @@ class RiakBackend(BaseBackend):
         """
         for key in self._activities.get_keys():
             self._activities.get(key).delete(rw='all', r='all', w='all', dw='all')
-            assert not self._activities.get(key).exists()
+            assert not self._activities.get(key).exists
 
     def obj_exists(self, obj, **kwargs):
         obj_id = self._extract_id(obj)
-        return self._objects.get(obj_id).exists()
+        return self._objects.get(obj_id).exists
 
     def activity_exists(self, activity, **kwargs):
         activity_id = self._extract_id(activity)
-        return self._activities.get(activity_id).exists()
+        return self._activities.get(activity_id).exists
 
     def obj_create(self, obj, **kwargs):
         obj = Object(obj, backend=self)
@@ -215,7 +197,7 @@ class RiakBackend(BaseBackend):
         key = self._extract_id(obj_dict)
 
         riak_obj = self._objects.new(key=key)
-        riak_obj.set_data(obj_dict)
+        riak_obj.data = obj_dict
         riak_obj = self.set_general_indexes(riak_obj)
 
         riak_obj.store()
@@ -230,7 +212,7 @@ class RiakBackend(BaseBackend):
         :type riak_object: RiakObject
         :param riak_object: a RiakObject representing the model of  the class
         """
-        if not riak_object.get_indexes('timestamp_int'):
+        if not filter(lambda x: x[0] == "timestamp_int", riak_object.indexes):
             riak_object.add_index("timestamp_int", self._get_timestamp())
 
         riak_object.remove_index('modified_int')
@@ -246,7 +228,7 @@ class RiakBackend(BaseBackend):
         """
         if not obj:
             return obj
-        object_bucket_name = self._objects.get_name()
+        object_bucket_name = self._objects.name
         objects = self._riak_backend
 
         for o in obj:
@@ -277,14 +259,14 @@ class RiakBackend(BaseBackend):
         key = self._extract_id(activity_dict)
 
         riak_obj = self._activities.new(key=key)
-        riak_obj.set_data(activity_dict)
+        riak_obj.data = activity_dict
         riak_obj = self.set_activity_indexes(self.set_general_indexes(riak_obj))
         if activity_dict['verb'] in SUB_ACTIVITY_MAP:
             riak_obj = self.set_sub_item_indexes(riak_obj, **kwargs)
 
         riak_obj.store()
 
-        return self.dehydrate_activities([riak_obj.get_data()])[0]
+        return self.dehydrate_activities([riak_obj.data])[0]
 
     def set_activity_indexes(self, riak_object):
         """
@@ -297,7 +279,7 @@ class RiakBackend(BaseBackend):
         :type riak_object: RiakObject
         :param riak_object: a RiakObject representing the model of  the class
         """
-        _dict = riak_object.get_data()
+        _dict = riak_object.data
 
         riak_object.remove_index('verb_bin')
         riak_object.remove_index('actor_bin')
@@ -383,7 +365,7 @@ class RiakBackend(BaseBackend):
         object_type = kwargs.get('object_type', sub_activity_verb)
 
         activity_id = self._extract_id(activity)
-        activity_model = Activity(self._activities.get(key=activity_id).get_data(), backend=self)
+        activity_model = Activity(self._activities.get(key=activity_id).data, backend=self)
 
         sub_activity_obj, original_activity_obj = activity_model\
             .get_parsed_sub_activity_dict(
@@ -417,15 +399,16 @@ class RiakBackend(BaseBackend):
         sub_activity_id = self._extract_id(sub_activity)
 
         sub_activity_riak_model = self._activities.get(sub_activity_id)
-        if sub_activity_riak_model.get_data()['verb'] != sub_activity_model.sub_item_verb:
-            raise SunspearValidationException("Trying to delete something that is not a %s." \
-                % sub_activity_model.sub_item_verb)
+        if sub_activity_riak_model.data['verb'] != sub_activity_model.sub_item_verb:
+            raise SunspearValidationException("Trying to delete something that is not a {}.".format(sub_activity_model.sub_item_verb))
 
         #clean up the reference from the original activity
-        activity = self._activities.get(key=sub_activity_riak_model.get_indexes('inreplyto_bin')[0])
-        activity_data = activity.get_data()
+        in_reply_to_key = filter(lambda x: x[0] == 'inreplyto_bin', sub_activity_riak_model.indexes)[0][1]
+        activity = self._activities.get(key=in_reply_to_key)
+        activity_data = activity.data
         activity_data[sub_activity_model.sub_item_key]['totalItems'] -= 1
-        activity_data[sub_activity_model.sub_item_key]['items'] = filter(lambda x: x["id"] != sub_activity_id,\
+        activity_data[sub_activity_model.sub_item_key]['items'] = filter(
+            lambda x: x["id"] != sub_activity_id,
             activity_data[sub_activity_model.sub_item_key]['items'])
 
         updated_activity = self.update_activity(activity_data, **kwargs)
@@ -636,7 +619,7 @@ class RiakBackend(BaseBackend):
         :type audience_targeting: dict
         :param audience_targeting: Filters the list of activities targeted towards a particular audience. The key for the dictionary is one of ``to``, ``cc``, ``bto``, or ``bcc``.
         """
-        activity_bucket_name = self._activities.get_name()
+        activity_bucket_name = self._activities.name
         activities = self._riak_backend
 
         for activity_id in activity_ids:

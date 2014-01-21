@@ -3,7 +3,6 @@ from __future__ import absolute_import
 from nose.tools import ok_, eq_, set_trace, raises
 from mock import MagicMock, call, ANY
 
-from sunspear.exceptions import SunspearValidationException
 from sunspear.aggregators.property import PropertyAggregator
 from sunspear.backends.riak import RiakBackend
 from sunspear.clients import SunspearClient
@@ -11,8 +10,8 @@ from sunspear.clients import SunspearClient
 import datetime
 
 riak_connection_options = {
-    "host_list": [{'port': 8087}],
-    "defaults": {'host': '127.0.0.1'},
+    "nodes": [{'host': '127.0.0.1', 'pb_port': 8087}],
+    # "nodes": [{'host': '127.0.0.1', 'pb_port': 10017}, {'host': '127.0.0.1', 'pb_port': 10027}, {'host': '127.0.0.1', 'pb_port': 10037}],
 }
 
 
@@ -28,7 +27,7 @@ class TestSunspearClient(object):
 
         actstream_obj = self._client.create_object(obj)
 
-        ok_(self._backend._objects.get(key=obj['id']).exists())
+        ok_(self._backend._objects.get(key=obj['id']).exists)
         eq_(actstream_obj, obj)
 
     def test_create_activity(self):
@@ -48,7 +47,7 @@ class TestSunspearClient(object):
         act_obj = self._client.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
         act_obj_dict = act_obj
 
-        ok_(self._backend._activities.get(key=act_obj['id']).exists())
+        ok_(self._backend._activities.get(key=act_obj['id']).exists)
         eq_(act_obj_dict['actor'], actor)
         eq_(act_obj_dict['object'], obj)
 
@@ -140,8 +139,7 @@ class TestSunspearClient(object):
         eq_(act_obj_dict['object'], obj)
 
         self._client.delete_activity(act_obj_dict)
-        ok_(not self._backend._activities.get(key=act_obj_dict['id']).exists())
-
+        ok_(not self._backend._activities.get(key=act_obj_dict['id']).exists)
 
     def test_delete_activity_with_like(self):
         self._backend._activities.get('5').delete()
@@ -162,8 +160,8 @@ class TestSunspearClient(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(5, actor2_id, "",\
-            sub_activity_verb='like')
+        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
+            5, actor2_id, "", sub_activity_verb='like')
 
         eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
@@ -176,9 +174,8 @@ class TestSunspearClient(object):
         #now delete the activity and make sure the like gets deleted too:
         self._client.delete_like(like_activity_dict)
 
-        ok_(not self._backend._activities.get(like_activity_dict['id']).exists())
-        ok_(not self._backend._activities.get(activity_obj_dict['likes']['items'][0]['id']).exists())
-
+        ok_(not self._backend._activities.get(like_activity_dict['id']).exists)
+        ok_(not self._backend._activities.get(activity_obj_dict['likes']['items'][0]['id']).exists)
 
     def test_delete_like(self):
         self._backend._activities.get('5').delete()
@@ -199,8 +196,8 @@ class TestSunspearClient(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(5, actor2_id, "",\
-            sub_activity_verb='like')
+        like_activity_dict, activity_obj_dict = self._backend.create_sub_activity(
+            5, actor2_id, "", sub_activity_verb='like')
 
         eq_(like_activity_dict['actor']['id'], actor2_id)
         eq_(like_activity_dict['verb'], 'like')
@@ -212,11 +209,10 @@ class TestSunspearClient(object):
 
         #now delete the like and make sure everything is ok:
         returned_updated_activity = self._client.delete_like(like_activity_dict['id'])
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        activity_obj_dict = self._backend._activities.get('5').data
 
         ok_('likes' not in returned_updated_activity)
         ok_('likes' not in activity_obj_dict)
-
 
     def test_reply_delete(self):
         self._backend._activities.get('5').delete()
@@ -237,8 +233,8 @@ class TestSunspearClient(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         #now create a reply for the activity
-        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(5, actor2_id, "This is a reply.",\
-            sub_activity_verb='reply')
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            5, actor2_id, "This is a reply.", sub_activity_verb='reply')
 
         eq_(reply_activity_dict['actor']['id'], actor['id'])
         eq_(reply_activity_dict['verb'], 'reply')
@@ -250,7 +246,7 @@ class TestSunspearClient(object):
 
         #now delete the reply and make sure everything is ok:
         returned_updated_activity = self._client.delete_reply(reply_activity_dict['id'])
-        activity_obj_dict = self._backend._activities.get('5').get_data()
+        activity_obj_dict = self._backend._activities.get('5').data
 
         ok_('replies' not in returned_updated_activity)
         ok_('replies' not in activity_obj_dict)
@@ -266,14 +262,26 @@ class TestSunspearClient(object):
         self._backend._objects.get(obj3_id).delete()
         self._backend._objects.get(obj4_id).delete()
 
-        obj1 = {"objectType": "Hello", "id": obj1_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
-        obj2 = {"objectType": "Hello", "id": obj2_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
-        obj3 = {"objectType": "Hello", "id": obj3_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
-        obj4 = {"objectType": "Hello", "id": obj4_id,\
-            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"}
+        obj1 = {
+            "objectType": "Hello",
+            "id": obj1_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
+        obj2 = {
+            "objectType": "Hello",
+            "id": obj2_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
+        obj3 = {
+            "objectType": "Hello",
+            "id": obj3_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
+        obj4 = {
+            "objectType": "Hello",
+            "id": obj4_id,
+            "published": datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') + "Z"
+        }
 
         self._backend.create_obj(obj1)
         self._backend.create_obj(obj2)
@@ -439,23 +447,69 @@ class TestSunnspearClientActivities(object):
         self._backend._activities.get(self.activity_id).delete()
         self._backend._activities.get(self.activity_id2).delete()
 
-        self._backend._objects.new(key=self.actor["id"]).set_data(self.actor).store()
-        self._backend._objects.new(key=self.actor2["id"]).set_data(self.actor2).store()
-        self._backend._objects.new(key=self.actor3["id"]).set_data(self.actor3).store()
-        self._backend._objects.new(key=self.obj["id"]).set_data(self.obj).store()
-        self._backend._objects.new(key=self.obj2["id"]).set_data(self.obj2).store()
-        self._backend._objects.new(key=self.obj3["id"]).set_data(self.obj3).store()
-        self._backend._objects.new(key=self.reply_1["id"]).set_data(self.reply_1).store()
-        self._backend._objects.new(key=self.reply_2["id"]).set_data(self.reply_2).store()
-        self._backend._objects.new(key=self.like_1["id"]).set_data(self.like_1).store()
-        self._backend._objects.new(key=self.like_2["id"]).set_data(self.like_2).store()
+        obj1 = self._backend._objects.new(key=self.actor["id"])
+        obj1.data = self.actor
+        obj1.store()
 
-        self._backend._activities.new(key=self.reply_activity_1["id"]).set_data(self.reply_activity_1).store()
-        self._backend._activities.new(key=self.reply_activity_2["id"]).set_data(self.reply_activity_2).store()
-        self._backend._activities.new(key=self.like_activity_1["id"]).set_data(self.like_activity_1).store()
-        self._backend._activities.new(key=self.like_activity_2["id"]).set_data(self.like_activity_2).store()
-        self._backend._activities.new(key=self.activity_1["id"]).set_data(self.activity_1).store()
-        self._backend._activities.new(key=self.activity_2["id"]).set_data(self.activity_2).store()
+        obj2 = self._backend._objects.new(key=self.actor2["id"])
+        obj2.data = self.actor2
+        obj2.store()
+
+        obj3 = self._backend._objects.new(key=self.actor3["id"])
+        obj3.data = self.actor3
+        obj3.store()
+
+        obj4 = self._backend._objects.new(key=self.obj["id"])
+        obj4.data = self.obj
+        obj4.store()
+
+        obj5 = self._backend._objects.new(key=self.obj2["id"])
+        obj5.data = self.obj2
+        obj5.store()
+
+        obj6 = self._backend._objects.new(key=self.obj3["id"])
+        obj6.data = self.obj3
+        obj6.store()
+
+        obj7 = self._backend._objects.new(key=self.reply_1["id"])
+        obj7.data = self.reply_1
+        obj7.store()
+
+        obj8 = self._backend._objects.new(key=self.reply_2["id"])
+        obj8.data = self.reply_2
+        obj8.store()
+
+        obj9 = self._backend._objects.new(key=self.like_1["id"])
+        obj9.data = self.like_1
+        obj9.store()
+
+        obj10 = self._backend._objects.new(key=self.like_2["id"])
+        obj10.data = self.like_2
+        obj10.store()
+
+        obj11 = self._backend._activities.new(key=self.reply_activity_1["id"])
+        obj11.data = self.reply_activity_1
+        obj11.store()
+
+        obj12 = self._backend._activities.new(key=self.reply_activity_2["id"])
+        obj12.data = self.reply_activity_2
+        obj12.store()
+
+        obj13 = self._backend._activities.new(key=self.like_activity_1["id"])
+        obj13.data = self.like_activity_1
+        obj13.store()
+
+        obj14 = self._backend._activities.new(key=self.like_activity_2["id"])
+        obj14.data = self.like_activity_2
+        obj14.store()
+
+        obj15 = self._backend._activities.new(key=self.activity_1["id"])
+        obj15.data = self.activity_1
+        obj15.store()
+
+        obj16 = self._backend._activities.new(key=self.activity_2["id"])
+        obj16.data = self.activity_2
+        obj16.store()
 
     def test_get_activities_with_replies(self):
 
