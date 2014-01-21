@@ -145,17 +145,25 @@ class RiakBackend(BaseBackend):
         self._objects = self._riak_backend.bucket(objects_bucket_name)
         self._activities = self._riak_backend.bucket(activities_bucket_name)
 
-        self._objects.set_r(r_value)
-        self._objects.set_w(w_value)
-        self._objects.set_dw(dw_value)
-        self._objects.set_pr(pr_value)
-        self._objects.set_pw(pw_value)
+        if r_value:
+            self._objects.r = r_value
+            self._activities.r = r_value
 
-        self._activities.set_r(r_value)
-        self._activities.set_w(w_value)
-        self._activities.set_dw(dw_value)
-        self._activities.set_pr(pr_value)
-        self._activities.set_pw(pw_value)
+        if w_value:
+            self._objects.w = w_value
+            self._activities.w = w_value
+
+        if dw_value:
+            self._objects.dw = dw_value
+            self._activities.dw = dw_value
+
+        if pr_value:
+            self._objects.pr = pr_value
+            self._activities.pr = pr_value
+
+        if pw_value:
+            self._objects.pw = pw_value
+            self._activities.pw = pw_value
 
     def clear_all(self, **kwargs):
         """
