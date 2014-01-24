@@ -548,8 +548,14 @@ class RiakBackend(BaseBackend):
         if not skip_sub_activities:
             for collection in Activity._response_fields:
                 if collection in sub_activity and sub_activity[collection]['items']:
+                    dehydrated_sub_items = []
                     for i, item in enumerate(sub_activity[collection]['items']):
-                        sub_activity[collection]['items'][i] = self._dehydrate_sub_activity(item, obj_list)
+                        try:
+                            dehydrated_sub_items.append(self._dehydrate_sub_activity(item, obj_list))
+                        except KeyError, e:
+                            pass
+                        sub_activity[collection]['items'] = dehydrated_sub_items
+                        sub_activity[collection]['totalItems'] = len(dehydrated_sub_items)
 
         return sub_activity
 

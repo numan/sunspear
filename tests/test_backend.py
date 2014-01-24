@@ -10,8 +10,8 @@ from sunspear.backends.riak import RiakBackend
 import datetime
 
 riak_connection_options = {
-    "nodes": [{'host': '127.0.0.1', 'pb_port': 8087}],
-    # "nodes": [{'host': '127.0.0.1', 'pb_port': 10017}, {'host': '127.0.0.1', 'pb_port': 10027}, {'host': '127.0.0.1', 'pb_port': 10037}],
+    # "nodes": [{'host': '127.0.0.1', 'pb_port': 8087}],
+    "nodes": [{'host': '127.0.0.1', 'pb_port': 10017}, {'host': '127.0.0.1', 'pb_port': 10027}, {'host': '127.0.0.1', 'pb_port': 10037}],
 }
 
 
@@ -1394,7 +1394,68 @@ class TestRiakBackendDehydrate(object):
         activities[0]['replies']['items'][0]['object'].update(self.reply_activity_1)
 
         expected = [
-            {"id": 1, "title": "Stream Item", "verb": "post", "actor": [self.actor, self.actor2], "object": self.obj,
+            {
+                "id": 1, "title": "Stream Item", "verb": "post", "actor": [self.actor, self.actor2], "object": self.obj,
+                    'replies': {
+                        'totalItems': 1,
+                        'items': [{'actor': self.actor, 'verb': 'reply', 'object': {
+                            'objectType': 'activity',
+                            'actor': self.actor,
+                            'object': self.reply_1,
+                            'target': self.actor3,
+                            'verb': 'reply',
+                            'id': self.reply_activity_id,
+                        }}]
+                    },
+            },
+            {"id": 1, "title": "Stream Item 2", "verb": "post", "actor": self.actor3, "object": [self.obj, self.obj2]},
+        ]
+
+        result = self._backend.dehydrate_activities(activities)
+        eq_(result, expected)
+
+    def test_dehydrate_activities_with_replies_not_existing(self):
+
+        activities = [
+            {
+                "id": 1,
+                "title": "Stream Item",
+                "verb": "post",
+                "actor": [self.actor_id, self.actor_id2],
+                "object": self.object_id,
+                'replies': {
+                    'totalItems': 2,
+                    'items': [
+                        {
+                            'actor': self.actor_id,
+                            'verb': 'reply',
+                            'object': {
+                                'objectType': 'activity'
+                            }
+                        },
+                        {
+                            'actor': self.actor_id,
+                            'id': 'thisidprobdoesntexist',
+                            'verb': 'reply',
+                            'object': {
+                                'objectType': 'activity',
+                                'id': 'thisidprobdoesntexist',
+                            }
+                        }
+                    ]
+                },
+            },
+            {"id": 1, "title": "Stream Item 2", "verb": "post", "actor": self.actor_id3, "object": [self.object_id, self.object_id2]},
+        ]
+        activities[0]['replies']['items'][0]['object'].update(self.reply_activity_1)
+
+        expected = [
+            {
+                "id": 1,
+                "title": "Stream Item",
+                "verb": "post",
+                "actor": [self.actor, self.actor2],
+                "object": self.obj,
                 'replies': {
                     'totalItems': 1,
                     'items': [{'actor': self.actor, 'verb': 'reply', 'object': {
@@ -1412,6 +1473,7 @@ class TestRiakBackendDehydrate(object):
 
         result = self._backend.dehydrate_activities(activities)
         eq_(result, expected)
+
 
     def test_get_activities_with_replies(self):
 
