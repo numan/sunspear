@@ -177,7 +177,7 @@ class RiakBackend(BaseBackend):
         Deletes all objects data from riak
         """
         for key in self._objects.get_keys():
-            self._objects.get(key).delete(rw='all', r='all', w='all', dw='all')
+            self._objects.get(key).delete(r='all', w='all', dw='all')
             assert not self._objects.get(key).exists
 
     def clear_all_activities(self, **kwargs):
@@ -185,7 +185,7 @@ class RiakBackend(BaseBackend):
         Deletes all activities data from riak
         """
         for key in self._activities.get_keys():
-            self._activities.get(key).delete(rw='all', r='all', w='all', dw='all')
+            self._activities.get(key).delete(r='all', w='all', dw='all')
             assert not self._activities.get(key).exists
 
     def obj_exists(self, obj, **kwargs):
