@@ -437,7 +437,7 @@ class TestRiakBackend(object):
         eq_(activities[0]['id'], activity_1['id'])
         eq_(activities[1]['id'], activity_2['id'])
 
-    def test__get_many_activities_with_raw_filter_and_other_filter_only_runs_raw(self):
+    def test__get_many_activities_with_raw_filter_and_other_filter_runs_both_filters(self):
         self._backend._activities.get('1').delete()
         self._backend._activities.get('2').delete()
         self._backend._activities.get('3').delete()
@@ -464,11 +464,10 @@ class TestRiakBackend(object):
 
         activities = self._backend._get_many_activities(
             activity_ids=['1', '2', '3', '4', '5'], raw_filter=raw_filter,
-            filters={'verb': ['type3'], 'actor': ['1237', '1238']})
+            filters={'actor': ['1234', '1238']})
 
-        eq_(2, len(activities))
+        eq_(1, len(activities))
         eq_(activities[0]['id'], activity_1['id'])
-        eq_(activities[1]['id'], activity_2['id'])
 
     def test_dehydrate_activities(self):
         actor_id = '1234'

@@ -44,28 +44,45 @@ JS_MAP = """
             return;
         }
       });
-      //filter out undefinded things
+      // filter out undefined things
       return newValues.filter(function(value){ return value; });
     }
 """
 
 JS_REDUCE_FILTER_PROP = """
     function(value, arg) {
-        if (arg['raw_filter'] != "") {
+
+        // If filters is `null`, that means ONLY filter by the raw filter (if provided). For all other
+        // values, we return all activities that match ANY filter. In particular, this means that an empty filters
+        // object will filter out all activities, i.e. never return any activities, because no filter matched.
+        var has_filters = arg.filters !== null;
+        var matchall = function() { return true; };
+
+        // filter functions
+        var raw_filter = matchall;
+        var matches_filters = matchall;
+
+        if (arg['raw_filter'] != '') {
             raw_filter = eval(arg['raw_filter']);
-            return value.filter(raw_filter);
         }
-        return value.filter(function(obj){
-            for (var filter in arg['filters']){
-                if (filter in obj) {
-                    for(var i in arg['filters'][filter]) {
-                        if (obj[filter] == arg['filters'][filter][i]) {
-                            return true;
+
+        if (has_filters) {
+            matches_filters = function(obj) {
+                for (var filter in arg['filters']){
+                    if (filter in obj) {
+                        for(var i in arg['filters'][filter]) {
+                            if (obj[filter] == arg['filters'][filter][i]) {
+                                return true;
+                            }
                         }
                     }
                 }
-            }
-            return false;
+                return false;
+            };
+        }
+
+        return value.filter(function(obj) {
+            return raw_filter(obj) && matches_filters(obj);
         });
     }
 """
@@ -614,7 +631,7 @@ class RiakBackend(BaseBackend):
                         activity[collection]['items'][i] = self._dehydrate_object_keys(item, objects_dict)
         return activity
 
-    def _get_many_activities(self, activity_ids=[], raw_filter="", filters={}, include_public=False, audience_targeting={}):
+    def _get_many_activities(self, activity_ids=[], raw_filter="", filters=None, include_public=False, audience_targeting={}):
         """
         Given a list of activity ids, returns a list of activities from riak.
 
@@ -645,6 +662,10 @@ class RiakBackend(BaseBackend):
             results = results.reduce(JS_REDUCE_FILTER_AUD_TARGETTING, options={'arg': {'public': include_public, 'filters': audience_targeting}})
 
         if filters or raw_filter:
+            # An empty `filters` dict would cause all activities to be filtered out. If you wanted that effect, you
+            # wouldn't have to call this function, so let's assume that an empty dict is a typical default value and
+            # should denote that there are no filters to apply.
+            filters = filters or None
             results = results.reduce(JS_REDUCE_FILTER_PROP, options={'arg': {'raw_filter': raw_filter, 'filters': filters}})
 
         results = results.reduce(JS_REDUCE).run()
