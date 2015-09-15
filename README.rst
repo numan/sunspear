@@ -21,7 +21,7 @@ Contact
 Changelog
 ---------
 
-- **0.2.4**
+- **0.3.0**
 
   - Getting an activity from the riak backend now respects both the raw
     filter as well as a dict of filters simultaneously.
