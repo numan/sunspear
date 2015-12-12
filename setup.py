@@ -22,7 +22,7 @@ setup(
     install_requires=[
         'riak==2.2.0',
         'python-dateutil==1.5',
-        'protobuf==2.4.1',
+        'protobuf==2.6.1',
     ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
     tests_require=tests_require,
