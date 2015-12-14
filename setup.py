@@ -10,7 +10,7 @@ tests_require=[
 setup(
     name="sunspear",
     license='Apache License 2.0',
-    version="0.2.3",
+    version="0.3.0",
     description="Activity streams backed by Riak.",
     zip_safe=False,
     long_description=open('README.rst', 'r').read(),
@@ -22,7 +22,7 @@ setup(
     install_requires=[
         'riak==2.2.0',
         'python-dateutil==1.5',
-        'protobuf==2.4.1',
+        'protobuf==2.6.1',
     ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
     tests_require=tests_require,
