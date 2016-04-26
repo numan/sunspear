@@ -157,8 +157,11 @@ class Activity(Model):
         return model_dict
 
     def get_parsed_sub_activity_dict(self, actor, content="", verb="reply", object_type="reply", \
-        collection="replies", activity_class=None, extra={}, **kwargs):
+        collection="replies", activity_class=None, extra={}, published=None, **kwargs):
         #TODO: Doesn't feel like this should be here Feels like it belongs in the backend.
+
+        if published is None:
+            published = datetime.datetime.utcnow()
 
         in_reply_to_dict = {
             'objectType': 'activity',
@@ -169,7 +172,7 @@ class Activity(Model):
         reply_obj = {
             'objectType': object_type,
             'id': self.get_new_id(),
-            'published': datetime.datetime.utcnow(),
+            'published': published,
             'content': content,
             'inReplyTo': [in_reply_to_dict],
         }
@@ -177,7 +180,8 @@ class Activity(Model):
         reply_dict = {
             'actor': actor,
             'object': reply_obj,
-            'verb': verb
+            'verb': verb,
+            'published': published,
         }
 
         if isinstance(content, dict):
@@ -193,7 +197,7 @@ class Activity(Model):
             # 'actor': _activity_data['actor'],
             'verb': verb,
             # 'id': _activity_data['id'],
-            # 'published': _activity_data['published'],
+            'published': published,
             'object': {
                 'objectType': 'activity',
                 # 'id': _activity_data['id'],
