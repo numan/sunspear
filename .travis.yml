@@ -4,6 +4,7 @@ python:
     - "2.7"
 before_install:
     - sudo apt-get update
+    - sudo apt-get upgrade
     - sudo apt-get install -qq protobuf-compiler
 services:
     - riak
