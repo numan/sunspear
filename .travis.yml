@@ -1,9 +1,9 @@
 language: python
 python:
-    - "2.6"
     - "2.7"
 before_install:
     - sudo apt-get update
+    - sudo apt-get -o Dpkg::Options::="--force-confnew" -qq -y upgrade
     - sudo apt-get install -qq protobuf-compiler
 services:
     - riak
