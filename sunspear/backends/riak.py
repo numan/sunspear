@@ -384,7 +384,7 @@ class RiakBackend(BaseBackend):
 
     def sub_activity_create(
         self, activity, actor, content, extra={}, sub_activity_verb="",
-            **kwargs):
+            published=None, **kwargs):
         sub_activity_model = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][0]
         sub_activity_attribute = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][1]
         object_type = kwargs.get('object_type', sub_activity_verb)
@@ -396,7 +396,7 @@ class RiakBackend(BaseBackend):
             .get_parsed_sub_activity_dict(
                 actor=actor, content=content, verb=sub_activity_verb,
                 object_type=object_type, collection=sub_activity_attribute,
-                activity_class=sub_activity_model, extra=extra)
+                activity_class=sub_activity_model, published=published, extra=extra)
 
         sub_activity_obj = self.create_activity(sub_activity_obj, activity_id=original_activity_obj['id'])
 
