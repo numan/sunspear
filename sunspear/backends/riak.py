@@ -369,10 +369,11 @@ class RiakBackend(BaseBackend):
             audience_targeting=audience_targeting)
 
         activities = self.dehydrate_activities(activities)
-        original_activities = copy.deepcopy(activities)
 
-        for aggregator in aggregation_pipeline:
-            activities = aggregator.process(activities, original_activities, aggregation_pipeline)
+        if aggregation_pipeline:
+            original_activities = copy.deepcopy(activities)
+            for aggregator in aggregation_pipeline:
+                activities = aggregator.process(activities, original_activities, aggregation_pipeline)
         return activities
 
     def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="", **kwargs):
