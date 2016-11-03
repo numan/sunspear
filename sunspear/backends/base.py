@@ -384,16 +384,6 @@ class BaseBackend(object):
 
         return list_or_string
 
-    def _extract_id(self, activity_or_id):
-        """
-        Helper that returns an id if the activity has one.
-        """
-        this_id = activity_or_id
-        if isinstance(activity_or_id, dict):
-            this_id = activity_or_id.get('id', None)
-
-        return this_id
-
     def get_new_id(self):
         """
         Generates a new unique ID. The default implementation uses uuid1 to
@@ -402,3 +392,23 @@ class BaseBackend(object):
         :return: a new id
         """
         return uuid.uuid1().hex
+
+    def _extract_id(self, activity_or_id):
+        """
+        Helper that returns an id if the activity has one.
+        """
+        this_id = None
+        if isinstance(activity_or_id, basestring):
+            this_id = activity_or_id
+        elif isinstance(activity_or_id, dict):
+            this_id = activity_or_id.get('id', None)
+            try:
+                this_id = str(this_id)
+            except:
+                pass
+        else:
+            try:
+                this_id = str(activity_or_id)
+            except:
+                pass
+        return this_id

@@ -18,7 +18,7 @@ under the License.
 from __future__ import absolute_import
 
 from sunspear.activitystreams.models import Object, Activity, Model
-from sunspear.exceptions import (SunspearValidationException)
+from sunspear.exceptions import SunspearValidationException
 from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
 
 from riak import RiakClient
@@ -145,8 +145,6 @@ JS_REDUCE_OBJS = """
 
 
 class RiakBackend(BaseBackend):
-    custom_epoch = datetime.datetime(month=1, day=1, year=2013)
-
     def __init__(
         self, protocol="pbc", nodes=[], objects_bucket_name="objects",
             activities_bucket_name="activities", **kwargs):
@@ -679,26 +677,6 @@ class RiakBackend(BaseBackend):
 
         return reordered_results
 
-    def _extract_id(self, activity_or_id):
-        """
-        Helper that returns an id if the activity has one.
-        """
-        this_id = None
-        if isinstance(activity_or_id, basestring):
-            this_id = activity_or_id
-        elif isinstance(activity_or_id, dict):
-            this_id = activity_or_id.get('id', None)
-            try:
-                this_id = str(this_id)
-            except:
-                pass
-        else:
-            try:
-                this_id = str(activity_or_id)
-            except:
-                pass
-        return this_id
-
     def _get_timestamp(self):
         """
         returns a unix timestamp representing the ``datetime`` object
@@ -714,5 +692,4 @@ class RiakBackend(BaseBackend):
         :return: a new id
         """
         return uuid.uuid1().hex
-        # now = datetime.datetime.utcnow()
-        # return str(long(calendar.timegm(now.utctimetuple()) - calendar.timegm(self.custom_epoch.utctimetuple())) + now.microsecond)
+

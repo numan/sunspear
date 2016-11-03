@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from nose.tools import ok_, eq_, set_trace, raises
+from nose.tools import ok_, eq_, raises
 from mock import MagicMock, call, ANY
 
 from sunspear.exceptions import SunspearValidationException

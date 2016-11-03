@@ -5,52 +5,80 @@ import types as custom_types
 metadata = MetaData()
 
 objects_table = Table('objects', metadata,
-                      Column('id', String, primary_key=True),
-                      Column('object_type', String, nullable=False),
-                      Column('display_name', String),
-                      Column('display_name', String),
+                      Column('id', String(32), primary_key=True),
+                      Column('object_type', String(256, convert_unicode=True), nullable=False),
+                      Column('display_name', String(256, convert_unicode=True)),
                       Column('content', Text),
-                      Column('published', DateTime, nullable=False),
-                      Column('image'), custom_types.JSONSmallDict(4096),
-                      Column('other_data'), custom_types.JSONDict)
+                      Column('published', DateTime(timezone=True), nullable=False),
+                      Column('updated', DateTime(timezone=True)),
+                      Column('image', custom_types.JSONSmallDict(4096)),
+                      Column('other_data', custom_types.JSONDict()))
 
 activities_table = Table('activities', metadata,
-                         Column('id', String, primary_key=True),
-                         Column('verb', String, nullable=False),
-                         Column('actor', ForeignKey('objects.id'), nullable=False),
-                         Column('object', ForeignKey('objects.id')),
-                         Column('target', ForeignKey('objects.id')),
-                         Column('author', ForeignKey('objects.id')),
-                         Column('generator', String),
-                         Column('provider', String),
+                         Column('id', String(32), primary_key=True),
+                         Column('verb', String(256, convert_unicode=True), nullable=False),
+                         Column('actor', ForeignKey('objects.id', ondelete='CASCADE'), nullable=False),
+                         Column('object', ForeignKey('objects.id', ondelete='CASCADE')),
+                         Column('target', ForeignKey('objects.id', ondelete='CASCADE')),
+                         Column('author', ForeignKey('objects.id', ondelete='CASCADE')),
+                         Column('generator', String(1024, convert_unicode=True)),
+                         Column('provider', String(1024, convert_unicode=True)),
                          Column('content', Text),
-                         Column('published', DateTime, nullable=False),
-                         Column('updated', DateTime),
-                         Column('icon'), custom_types.JSONSmallDict(4096),
-                         Column('other_data'), custom_types.JSONDict)
+                         Column('published', DateTime(timezone=True), nullable=False),
+                         Column('updated', DateTime(timezone=True)),
+                         Column('icon', custom_types.JSONSmallDict(4096)),
+                         Column('other_data', custom_types.JSONDict()))
 
-subitem_fields = (Column('id', String, primary_key=True),
-                  Column('in_reply_to', ForeignKey('activities.id'), nullable=False),
-                  Column('published', DateTime, nullable=False),
-                  Column('actor', ForeignKey('objects.id'), nullable=False),
-                  Column('content', Text),
-                  UniqueConstraint('actor', 'in_reply_to')
-                  )
+replies_table = Table('replies', metadata,
+                      Column('id', String(32), primary_key=True),
+                      Column('in_reply_to', ForeignKey('activities.id', ondelete='CASCADE'), nullable=False),
+                      Column('actor', ForeignKey('objects.id', ondelete='CASCADE'), nullable=False),
+                      Column('published', DateTime(timezone=True), nullable=False),
+                      Column('updated', DateTime(timezone=True)),
+                      Column('content', Text),
+                      Column('other_data', custom_types.JSONDict()))
 
-replies_table = Table('replies', metadata, **subitem_fields)
-
-likes_table = Table('likes', metadata, **subitem_fields)
+likes_table = Table('likes', metadata,
+                    Column('id', String(32), primary_key=True),
+                    Column('in_reply_to', ForeignKey('activities.id', ondelete='CASCADE'), nullable=False),
+                    Column('actor', ForeignKey('objects.id', ondelete='CASCADE'), nullable=False),
+                    Column('published', DateTime(timezone=True), nullable=False),
+                    Column('content', Text),
+                    Column('other_data', custom_types.JSONDict()),
+                    UniqueConstraint('actor', 'in_reply_to'))
 
 shared_with_fields = (Column('id', Integer, primary_key=True),
-                      Column('object', ForeignKey('objects.id')),
-                      Column('activity', ForeignKey('activities.id')),
+                      Column('object', ForeignKey('objects.id', ondelete='CASCADE')),
+                      Column('activity', ForeignKey('activities.id', ondelete='CASCADE')),
                       UniqueConstraint('object', 'activity'))
 
-to_table = Table('to', metadata, **shared_with_fields)
+to_table = Table('to', metadata,
+                 Column('id', Integer, primary_key=True),
+                 Column('object', ForeignKey('objects.id', ondelete='CASCADE')),
+                 Column('activity', ForeignKey('activities.id', ondelete='CASCADE')))
 
-bto_table = Table('bto', metadata, **shared_with_fields)
+bto_table = Table('bto', metadata,
+                  Column('id', Integer, primary_key=True),
+                  Column('object', ForeignKey('objects.id', ondelete='CASCADE')),
+                  Column('activity', ForeignKey('activities.id', ondelete='CASCADE')))
 
-cc_table = Table('cc', metadata, **shared_with_fields)
+cc_table = Table('cc', metadata,
+                 Column('id', Integer, primary_key=True),
+                 Column('object', ForeignKey('objects.id', ondelete='CASCADE')),
+                 Column('activity', ForeignKey('activities.id', ondelete='CASCADE')))
 
-bcc_table = Table('bcc', metadata, **shared_with_fields)
+bcc_table = Table('bcc', metadata,
+                  Column('id', Integer, primary_key=True),
+                  Column('object', ForeignKey('objects.id', ondelete='CASCADE')),
+                  Column('activity', ForeignKey('activities.id', ondelete='CASCADE')))
 
+tables = {
+    'objects': objects_table,
+    'activities': activities_table,
+    'replies': replies_table,
+    'likes': likes_table,
+    'to': to_table,
+    'bto': bto_table,
+    'cc': cc_table,
+    'bcc': bcc_table,
+}

@@ -78,5 +78,5 @@ class JSONEncodedBigDict(JSONEncodedSmallDict):
     impl = TEXT
 
 
-JSONDict = MutableDict.as_mutable(JSONEncodedBigDict)
-JSONSmallDict = MutableDict.as_mutable(JSONEncodedSmallDict)
+JSONDict = JSONEncodedBigDict
+JSONSmallDict = JSONEncodedSmallDict
