@@ -33,6 +33,7 @@ class TestDatabaseBackend(object):
         cls._backend = DatabaseBackend(db_connection_string=database_connection_string, verbose=False)
         cls._backend.drop_tables()
         cls._engine = cls._backend.engine
+        cls.now = datetime.datetime.utcnow()
 
     @classmethod
     def tearDownClass(cls):
@@ -89,7 +90,7 @@ class TestDatabaseBackend(object):
             'objectType': u'use\u0403',
             'displayName': u'\u019duman S',
             'content': u'Foo bar!\u03ee',
-            'published': self._datetime_to_string(datetime.datetime.utcnow()),
+            'published': self._datetime_to_string(self.now),
             'image': {
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
@@ -134,6 +135,21 @@ class TestDatabaseBackend(object):
         obj_exists = self._engine.execute(sql.select([sql.exists().where(schema.tables['objects'].c.id == self.test_obj['id'])]))
 
         ok_(obj_exists)
+
+    def test_obj_exists(self):
+        obj = {'id': 'dsaCDF34V4VvbgzAc', 'objectType': 'user', 'published': self._datetime_to_db_compatibal_str(self.now)}
+        db_obj = self._backend._obj_dict_to_db_schema(obj)
+
+        objects_table = schema.tables['objects']
+
+        self._engine.execute(objects_table.insert(), [
+            db_obj
+        ])
+
+        ok_(self._backend.obj_exists(obj))
+
+    def _datetime_to_db_compatibal_str(self, datetime_instance):
+        return datetime_instance.strftime('%Y-%m-%d %H:%M:%S')
 
     def _datetime_to_string(self, datetime_instance):
         return datetime_instance.strftime('%Y-%m-%dT%H:%M:%S') + "Z"

@@ -75,7 +75,10 @@ class DatabaseBackend(BaseBackend):
         self.engine.execute(schema.tables['activities'].delete())
 
     def obj_exists(self, obj, **kwargs):
-        return self.engine.execute(sql.select([sql.exists().where(schema.tables['objects'].c.id == self.test_obj['id'])]))
+        obj_id = self._extract_id(obj)
+        objs_db_table = schema.tables['objects']
+
+        return self.engine.execute(sql.select([sql.exists().where(objs_db_table.c.id == obj_id)]))
 
     def obj_create(self, obj, **kwargs):
         obj = Object(obj, backend=self)
