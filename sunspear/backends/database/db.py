@@ -29,8 +29,8 @@ from sqlalchemy import create_engine, sql
 from sqlalchemy.pool import QueuePool
 from sunspear.activitystreams.models import Activity, Model, Object
 from sunspear.backends.base import SUB_ACTIVITY_MAP, BaseBackend
-from sunspear.exceptions import (SunspearOperationNotSupportedException,
-                                 SunspearValidationException)
+from sunspear.exceptions import (
+    SunspearOperationNotSupportedException, SunspearValidationException, SunspearDuplicateEntryException)
 
 from . import schema
 
@@ -41,6 +41,21 @@ DB_OBJ_FIELD_MAPPING = {
     'content': 'content',
     'published': 'published',
     'image': 'image',
+}
+
+DB_ACTIVITY_FIELD_MAPPING = {
+    'id': 'id',
+    'verb': 'verb',
+    'actor': 'actor',
+    'object': 'object',
+    'target': 'target',
+    'author': 'author',
+    'generator': 'generator',
+    'provider': 'provider',
+    'content': 'content',
+    'published': 'published',
+    'updated': 'updated',
+    'icon': 'icon',
 }
 
 
@@ -54,6 +69,14 @@ class DatabaseBackend(BaseBackend):
     @property
     def engine(self):
         return self._engine
+
+    @property
+    def activities_table(self):
+        return schema.tables['activities']
+
+    @property
+    def objects_table(self):
+        return schema.tables['objects']
 
     def _get_connection(self):
         return self.engine.connect()
@@ -72,13 +95,19 @@ class DatabaseBackend(BaseBackend):
         raise SunspearOperationNotSupportedException()
 
     def clear_all_activities(self):
-        self.engine.execute(schema.tables['activities'].delete())
+        self.engine.execute(self.activities_table.delete())
 
     def obj_exists(self, obj, **kwargs):
         obj_id = self._extract_id(obj)
-        objs_db_table = schema.tables['objects']
+        objs_db_table = self.objects_table
 
         return self.engine.execute(sql.select([sql.exists().where(objs_db_table.c.id == obj_id)]))
+
+    def activity_exists(self, activity, **kwargs):
+        activity_id = self._extract_id(activity)
+        activities_db_table = self.activities_table
+
+        return self.engine.execute(sql.select([sql.exists().where(activities_db_table.c.id == activity_id)]))
 
     def obj_create(self, obj, **kwargs):
         obj = Object(obj, backend=self)
@@ -88,17 +117,40 @@ class DatabaseBackend(BaseBackend):
 
         obj_db_schema_dict = self._obj_dict_to_db_schema(obj_dict)
 
-        self.engine.execute(schema.tables['objects'].insert(), [obj_db_schema_dict])
+        self.engine.execute(self.objects_table.insert(), [obj_db_schema_dict])
 
         return obj_dict
 
-    def _obj_dict_to_db_schema(self, obj):
+    def activity_create(self, activity, **kwargs):
+        """
+        Creates an activity. This assumes the activity is already dehydrated (ie has refrences
+        to the objects and not the actual objects itself)
+        """
+        activity = Activity(activity, backend=self)
+
+        activity.validate()
+        activity_dict = activity.get_parsed_dict()
+
+        activity_db_schema_dict = self._activity_dict_to_db_schema(activity_dict)
+
+        self.engine.execute(self.activities_table.insert(), [activity_db_schema_dict])
+
+    def get_new_id(self):
+        """
+        Generates a new unique ID. The default implementation uses uuid1 to
+        generate a unique ID.
+
+        :return: a new id
+        """
+        return uuid.uuid1().hex
+
+    def _convert_to_db_schema(self, obj, field_mapping):
         # we make a copy because we will be mutating the dict.
         # we will map official fields to db fields, and put the rest in `other_data`
         obj_copy = copy.deepcopy(obj)
         schema_dict = {}
 
-        for obj_field, db_schema_field in DB_OBJ_FIELD_MAPPING.items():
+        for obj_field, db_schema_field in field_mapping.items():
             if obj_field in obj_copy:
                 data = obj_copy.pop(obj_field)
 
@@ -113,6 +165,12 @@ class DatabaseBackend(BaseBackend):
             schema_dict['other_data'] = obj_copy
 
         return schema_dict
+
+    def _obj_dict_to_db_schema(self, obj):
+        return self._convert_to_db_schema(obj, DB_OBJ_FIELD_MAPPING)
+
+    def _activity_dict_to_db_schema(self, activity):
+        return self._convert_to_db_schema(activity, DB_ACTIVITY_FIELD_MAPPING)
 
     def _get_datetime_obj(self, datetime_instance):
         if isinstance(datetime_instance, basestring):
@@ -132,12 +190,3 @@ class DatabaseBackend(BaseBackend):
         datetime_instance = self._get_datetime_obj(datetime_instance)
 
         return datetime_instance.strftime('%Y-%m-%d %H:%M:%S')
-
-    def get_new_id(self):
-        """
-        Generates a new unique ID. The default implementation uses uuid1 to
-        generate a unique ID.
-
-        :return: a new id
-        """
-        return uuid.uuid1().hex

@@ -80,6 +80,7 @@ class TestDatabaseBackend(object):
     def setUp(self):
         self._backend.create_tables()
         self._setup_objs()
+        self._setup_activities()
 
     def tearDown(self):
         self._backend.drop_tables()
@@ -103,6 +104,121 @@ class TestDatabaseBackend(object):
         }]
 
         self.test_obj = self.test_objs[0]
+
+    def _setup_activities(self):
+        self.test_activities = [{
+            'id': 'WvgYP43bfg64fsdDHt3',
+            'verb': 'join',
+            'actor': 'user:1',
+            'object': 'recognition:1',
+            'target': 'badge:2',
+            'author': 'user:435',
+            'generator': 'mobile:phone:android',
+            'provider': 'mobile:phone:android',
+            'content': 'foo baz',
+            'published': self.now,
+            'updated': self.now,
+            'icon': {
+                'url': 'https://www.google.com/cool_image.png',
+                'displayName': u'Cool \u0268mage',
+                'width': '500px',
+                'height': '500px'
+            },
+            'foo': 'bar',
+            'baz': u'go\u0298',
+            'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}},
+        }]
+
+        self.test_objs_for_activities = [{
+            'id': 'user:1',
+            'objectType': u'use\u0403',
+            'displayName': u'\u019duman S1',
+            'content': u'Foo bar!\u03ee',
+            'published': self._datetime_to_string(self.now),
+            'image': {
+                'url': 'https://www.google.com/cool_image.png',
+                'displayName': u'Cool \u0268mage',
+                'width': '500px',
+                'height': '500px'
+            },
+            'foo': 'bar',
+            'baz': u'go\u0298',
+            'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+        }, {
+            'id': 'recognition:1',
+            'objectType': u'use\u0403',
+            'displayName': u'\u019dRecognitionBadge',
+            'content': u'Good Work on everything\u03ee',
+            'published': self._datetime_to_string(self.now),
+            'image': {
+                'url': 'https://www.google.com/cool_image.png',
+                'displayName': u'Cool \u0268mage',
+                'width': '500px',
+                'height': '500px'
+            },
+            'foo': 'bar',
+            'baz': u'go\u0298',
+            'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+        }, {
+            'id': 'badge:2',
+            'objectType': u'use\u0403',
+            'displayName': u'\u019dAwesomeness',
+            'content': u'Just for being awesome\u03ee',
+            'published': self._datetime_to_string(self.now),
+            'image': {
+                'url': 'https://www.google.com/cool_image.png',
+                'displayName': u'Cool \u0268mage',
+                'width': '500px',
+                'height': '500px'
+            },
+            'foo': 'bar',
+            'baz': u'go\u0298',
+            'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+        }, {
+            'id': 'user:435',
+            'objectType': u'use\u0403',
+            'displayName': u'\u019duman S435',
+            'content': u'Foo bar!\u03ee',
+            'published': self._datetime_to_string(self.now),
+            'image': {
+                'url': 'https://www.google.com/cool_image.png',
+                'displayName': u'Cool \u0268mage',
+                'width': '500px',
+                'height': '500px'
+            },
+            'foo': 'bar',
+            'baz': u'go\u0298',
+            'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+        }, {
+            'id': 'mobile:phone:android',
+            'objectType': u'androidmobilephone\u0403',
+            'displayName': u'\u019dobile Phone Android',
+            'content': u'Foo bar!\u03ee',
+            'published': self._datetime_to_string(self.now),
+            'image': {
+                'url': 'https://www.google.com/cool_image.png',
+                'displayName': u'Cool \u0268mage',
+                'width': '500px',
+                'height': '500px'
+            },
+            'foo': 'bar',
+            'baz': u'go\u0298',
+            'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+        }]
+
+        self.test_activity = self.test_activities[0]
+
+        self.hydrated_test_activity = self._build_hydrated_activity(self.test_activity, self.test_objs_for_activities)
+
+    def _build_hydrated_activity(self, dehydrated_activity, objs):
+        hydrated_activity = copy.deepcopy(dehydrated_activity)
+        for obj_field in Model._object_fields:
+            if obj_field in hydrated_activity:
+                obj_id = hydrated_activity[obj_field]
+                obj = [obj for obj in objs if obj['id'] == obj_id][0]
+                hydrated_activity[obj_field] = obj
+
+        return hydrated_activity
 
     @raises(SunspearOperationNotSupportedException)
     def test_sample_test(self):
@@ -137,8 +253,7 @@ class TestDatabaseBackend(object):
         ok_(obj_exists)
 
     def test_obj_exists(self):
-        obj = {'id': 'dsaCDF34V4VvbgzAc', 'objectType': 'user', 'published': self._datetime_to_db_compatibal_str(self.now)}
-        db_obj = self._backend._obj_dict_to_db_schema(obj)
+        db_obj = self._backend._obj_dict_to_db_schema(self.test_obj)
 
         objects_table = schema.tables['objects']
 
@@ -146,7 +261,32 @@ class TestDatabaseBackend(object):
             db_obj
         ])
 
-        ok_(self._backend.obj_exists(obj))
+        ok_(self._backend.obj_exists(self.test_obj))
+
+    def test_activity_exists(self):
+        db_activity = self._backend._activity_dict_to_db_schema(self.test_activity)
+        db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
+
+        activities_table = schema.tables['activities']
+        objects_table = schema.tables['objects']
+
+        self._engine.execute(objects_table.insert(), db_objs)
+
+        self._engine.execute(activities_table.insert(), [
+            db_activity
+        ])
+
+        ok_(self._backend.activity_exists(self.test_activity))
+
+    def test_activity_create(self):
+        db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
+
+        objects_table = schema.tables['objects']
+        self._engine.execute(objects_table.insert(), db_objs)
+
+        self._backend.activity_create(self.test_activity)
+
+        ok_(self._backend.activity_exists(self.test_activity))
 
     def _datetime_to_db_compatibal_str(self, datetime_instance):
         return datetime_instance.strftime('%Y-%m-%d %H:%M:%S')

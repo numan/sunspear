@@ -2,7 +2,6 @@ from sqlalchemy.sql import operators
 from sqlalchemy import String
 from sqlalchemy.types import TypeDecorator, CHAR, VARCHAR, TEXT
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.mutable import MutableDict
 
 import json
 import uuid

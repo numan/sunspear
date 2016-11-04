@@ -1,6 +1,6 @@
 from sunspear.activitystreams.models import Activity, ReplyActivity, LikeActivity
-from sunspear.exceptions import (SunspearDuplicateEntryException, SunspearInvalidActivityException,
-    SunspearInvalidObjectException)
+from sunspear.exceptions import (
+    SunspearDuplicateEntryException, SunspearInvalidActivityException, SunspearInvalidObjectException)
 
 import uuid
 import copy
