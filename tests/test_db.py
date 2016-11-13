@@ -1,11 +1,11 @@
 from __future__ import absolute_import
 
-from nose.tools import ok_, eq_, raises
+from nose.tools import assert_raises, ok_, eq_, raises
 from sqlalchemy import create_engine, sql
+from sqlalchemy.exc import IntegrityError
 
 from sunspear.backends.database.db import *
 from sunspear.exceptions import SunspearOperationNotSupportedException
-from sunspear.backends.database import schema
 from sunspear.activitystreams.models import Model
 
 import copy
@@ -81,9 +81,32 @@ class TestDatabaseBackend(object):
         self._backend.create_tables()
         self._setup_objs()
         self._setup_activities()
+        self._setup_db_schema_dicts()
 
     def tearDown(self):
         self._backend.drop_tables()
+
+    def _setup_db_schema_dicts(self):
+        self.test_db_schema_dicts = [{
+            'id': 'AxsdSG244BfduiIZ',
+            'object_type': u'use\u0403',
+            'display_name': u'\u019duman S',
+            'content': u'Foo bar!\u03ee',
+            'published': self._datetime_to_string(self.now),
+            'image': {
+                'url': 'https://www.google.com/cool_image.png',
+                'displayName': u'Cool \u0268mage',
+                'width': '500px',
+                'height': '500px'
+            },
+            'other_data': {
+                'foo': 'bar',
+                'baz': u'go\u0298',
+                'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+            }
+        }]
+
+        self.test_db_schema_dict = self.test_db_schema_dicts[0]
 
     def _setup_objs(self):
         self.test_objs = [{
@@ -245,30 +268,51 @@ class TestDatabaseBackend(object):
         # Everything was placed in other_data
         eq_(obj_dict_copy, db_schema_dict['other_data'])
 
+    def test_db_schema_to_obj_dict(self):
+        db_schema_dict = self.test_db_schema_dict
+        db_schema_dict_copy = copy.deepcopy(db_schema_dict)
+
+        obj_dict = self._backend._db_schema_to_obj_dict(db_schema_dict)
+
+        # Confirm the original dict was not modified
+        eq_(db_schema_dict, db_schema_dict_copy)
+
+        for obj_field, db_schema_field in DB_OBJ_FIELD_MAPPING.items():
+            data = db_schema_dict[db_schema_field]
+            if obj_field in Model._datetime_fields:
+                data = self._backend._get_datetime_obj(data)
+
+            eq_(data, obj_dict[obj_field])
+
+        for key, value in db_schema_dict['other_data'].items():
+            eq_(obj_dict[key], value)
+
     def test_obj_create(self):
         self._backend.obj_create(self.test_obj)
 
-        obj_exists = self._engine.execute(sql.select([sql.exists().where(schema.tables['objects'].c.id == self.test_obj['id'])]))
+        obj_exists = self._engine.execute(
+            sql.select([sql.exists().where(self._backend.objects_table.c.id == self.test_obj['id'])]))
 
         ok_(obj_exists)
 
     def test_obj_exists(self):
         db_obj = self._backend._obj_dict_to_db_schema(self.test_obj)
 
-        objects_table = schema.tables['objects']
+        objects_table = self._backend.objects_table
 
         self._engine.execute(objects_table.insert(), [
             db_obj
         ])
 
         ok_(self._backend.obj_exists(self.test_obj))
+        ok_(not self._backend.obj_exists('someunknownid'))
 
     def test_activity_exists(self):
         db_activity = self._backend._activity_dict_to_db_schema(self.test_activity)
         db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
 
-        activities_table = schema.tables['activities']
-        objects_table = schema.tables['objects']
+        activities_table = self._backend.activities_table
+        objects_table = self._backend.objects_table
 
         self._engine.execute(objects_table.insert(), db_objs)
 
@@ -277,16 +321,49 @@ class TestDatabaseBackend(object):
         ])
 
         ok_(self._backend.activity_exists(self.test_activity))
+        ok_(not self._backend.activity_exists('someunknownid'))
 
     def test_activity_create(self):
         db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
 
-        objects_table = schema.tables['objects']
+        objects_table = self._backend.objects_table
         self._engine.execute(objects_table.insert(), db_objs)
 
         self._backend.activity_create(self.test_activity)
 
         ok_(self._backend.activity_exists(self.test_activity))
+
+    def test_create_activity(self):
+        self._backend.create_activity(self.hydrated_test_activity)
+        ok_(self._backend.activity_exists(self.hydrated_test_activity))
+
+    def test_create_activity_with_already_existing_objs(self):
+        db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
+        objects_table = self._backend.objects_table
+        self._engine.execute(objects_table.insert(), db_objs)
+
+        self._backend.create_activity(self.hydrated_test_activity)
+        ok_(self._backend.activity_exists(self.hydrated_test_activity))
+
+    def test_create_activity_with_some_already_existing_objs(self):
+        db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
+        objects_table = self._backend.objects_table
+        self._engine.execute(objects_table.insert(), db_objs[1:])
+
+        self._backend.create_activity(self.hydrated_test_activity)
+        ok_(self._backend.activity_exists(self.hydrated_test_activity))
+
+    def test_create_activity_with_only_ids_for_objs(self):
+        db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
+        objects_table = self._backend.objects_table
+        self._engine.execute(objects_table.insert(), db_objs)
+
+        self._backend.create_activity(self.test_activity)
+        ok_(self._backend.activity_exists(self.test_activity))
+
+    def test_create_activity_with_non_existing_objects_doesnt_work(self):
+        assert_raises(IntegrityError, self._backend.create_activity, self.test_activity)
+        ok_(not self._backend.activity_exists(self.test_activity))
 
     def _datetime_to_db_compatibal_str(self, datetime_instance):
         return datetime_instance.strftime('%Y-%m-%d %H:%M:%S')

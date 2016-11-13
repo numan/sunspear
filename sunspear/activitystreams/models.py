@@ -96,8 +96,7 @@ class Model(object):
         return _parsed_data
 
     def get_parsed_dict(self, *args, **kwargs):
-
-        #we are suppose to maintain our own published and updated fields
+        # we are suppose to maintain our own published and updated fields
         if not self._dict.get('published', None):
             self._dict['published'] = datetime.datetime.utcnow()
         elif 'updated' in self._reserved_fields:

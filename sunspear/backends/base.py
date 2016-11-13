@@ -48,6 +48,15 @@ class BaseBackend(object):
         """
         raise NotImplementedError()
 
+    def _resolve_activity_id(self, activity, **kwargs):
+        activity_id = self._extract_id(activity)
+        if activity_id and self.activity_exists(activity, **kwargs):
+                raise SunspearDuplicateEntryException()
+        else:
+            activity_id = self.get_new_id()
+
+        return activity_id
+
     #TODO: Tests
     def create_activity(self, activity, **kwargs):
         """
@@ -64,12 +73,8 @@ class BaseBackend(object):
         :raises: ``SunspearDuplicateEntryException`` if the record already exists in the database.
         :return: dict representing the new activity.
         """
-        activity_id = self._extract_id(activity)
-        if activity_id:
-            if self.activity_exists(activity, **kwargs):
-                raise SunspearDuplicateEntryException()
-        else:
-            activity['id'] = self.get_new_id()
+        activity_id = self._resolve_activity_id(activity, **kwargs)
+        activity['id'] = activity_id
 
         activity_copy = copy.copy(activity)
 
