@@ -1,17 +1,16 @@
 from __future__ import absolute_import
 
-from nose.tools import assert_raises, ok_, eq_, raises
+import copy
+import datetime
+import os
+
 from sqlalchemy import create_engine, sql
 from sqlalchemy.exc import IntegrityError
-
+from sunspear.activitystreams.models import Model
 from sunspear.backends.database.db import *
 from sunspear.exceptions import SunspearOperationNotSupportedException
-from sunspear.activitystreams.models import Model
 
-import copy
-import os
-import datetime
-
+from nose.tools import assert_raises, eq_, ok_, raises
 
 DB_CONNECTION_STRING = os.environ.get('DB_CONNECTION_STRING', 'mysql://root:@localhost')
 DB_TYPE = os.environ.get('DB_TYPE', 'mysql')
@@ -46,7 +45,7 @@ class TestDatabaseBackend(object):
 
     @classmethod
     def get_connection_string_with_database(cls, database_name):
-        return '{0}/{1}'.format(cls.get_connection_string(), database_name)
+        return '{0}/{1}?charset=utf8'.format(cls.get_connection_string(), database_name)
 
     @classmethod
     def _cleanup_db(cls, db_name):
@@ -243,6 +242,15 @@ class TestDatabaseBackend(object):
 
         return hydrated_activity
 
+    def _insert_obj(self, obj):
+        db_obj = self._backend._obj_dict_to_db_schema(obj)
+
+        objects_table = self._backend.objects_table
+
+        self._engine.execute(objects_table.insert(), [
+            db_obj
+        ])
+
     @raises(SunspearOperationNotSupportedException)
     def test_sample_test(self):
         self._backend.clear_all_objects()
@@ -281,6 +289,7 @@ class TestDatabaseBackend(object):
             data = db_schema_dict[db_schema_field]
             if obj_field in Model._datetime_fields:
                 data = self._backend._get_datetime_obj(data)
+                data = '{}Z'.format(data.isoformat())
 
             eq_(data, obj_dict[obj_field])
 
@@ -296,16 +305,30 @@ class TestDatabaseBackend(object):
         ok_(obj_exists)
 
     def test_obj_exists(self):
-        db_obj = self._backend._obj_dict_to_db_schema(self.test_obj)
-
-        objects_table = self._backend.objects_table
-
-        self._engine.execute(objects_table.insert(), [
-            db_obj
-        ])
+        self._insert_obj(self.test_obj)
 
         ok_(self._backend.obj_exists(self.test_obj))
         ok_(not self._backend.obj_exists('someunknownid'))
+
+    def test_obj_delete(self):
+        objects_table = self._backend.objects_table
+        obj_id = self.test_obj['id']
+
+        self._insert_obj(self.test_obj)
+
+        self._backend.obj_delete(obj_id)
+
+        exists = self._engine.execute(sql.select([sql.exists().where(objects_table.c.id == obj_id)])).scalar()
+        ok_(not exists)
+
+    def test_obj_get(self):
+        obj_id = self.test_obj['id']
+
+        self._insert_obj(self.test_obj)
+        print self.test_obj
+
+        objs = self._backend.obj_get([obj_id])
+        eq_(objs[0], self.test_obj)
 
     def test_activity_exists(self):
         db_activity = self._backend._activity_dict_to_db_schema(self.test_activity)

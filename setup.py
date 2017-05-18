@@ -24,6 +24,7 @@ setup(
         'python-dateutil==1.5',
         'protobuf==2.6.1',
         'sqlalchemy==1.1.3',
+        'six'
     ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
     tests_require=tests_require,

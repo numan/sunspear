@@ -6,8 +6,8 @@ metadata = MetaData()
 
 objects_table = Table('objects', metadata,
                       Column('id', String(32), primary_key=True),
-                      Column('object_type', String(256, convert_unicode=True), nullable=False),
-                      Column('display_name', String(256, convert_unicode=True)),
+                      Column('object_type', String(256), nullable=False),
+                      Column('display_name', String(256)),
                       Column('content', Text),
                       Column('published', DateTime(timezone=True), nullable=False),
                       Column('updated', DateTime(timezone=True)),
@@ -16,7 +16,7 @@ objects_table = Table('objects', metadata,
 
 activities_table = Table('activities', metadata,
                          Column('id', String(32), primary_key=True),
-                         Column('verb', String(256, convert_unicode=True), nullable=False),
+                         Column('verb', String(256), nullable=False),
                          Column('actor', ForeignKey('objects.id', ondelete='CASCADE'), nullable=False),
                          Column('object', ForeignKey('objects.id', ondelete='SET NULL')),
                          Column('target', ForeignKey('objects.id', ondelete='SET NULL')),
@@ -46,11 +46,6 @@ likes_table = Table('likes', metadata,
                     Column('content', Text),
                     Column('other_data', custom_types.JSONDict()),
                     UniqueConstraint('actor', 'in_reply_to'))
-
-shared_with_fields = (Column('id', Integer, primary_key=True),
-                      Column('object', ForeignKey('objects.id', ondelete='CASCADE')),
-                      Column('activity', ForeignKey('activities.id', ondelete='CASCADE')),
-                      UniqueConstraint('object', 'activity'))
 
 to_table = Table('to', metadata,
                  Column('id', Integer, primary_key=True),

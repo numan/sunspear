@@ -46,7 +46,7 @@ class Model(object):
         for field in self._reserved_fields:
             if self._dict.get(field, None) is not None\
                 and field not in ['updated', 'published']:
-                #updated and publised are special eceptions because if they are in reserved fields, the'll be overridden
+                # updated and publised are special eceptions because if they are in reserved fields, the'll be overridden
                 raise SunspearValidationException("Reserved field name used: %s" % field)
 
         for field in self._media_fields:

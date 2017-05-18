@@ -15,12 +15,14 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 import calendar
 import copy
 import datetime
 import uuid
+import six
+import json
 
 from dateutil.parser import parse
 from dateutil import tz
@@ -58,13 +60,15 @@ DB_ACTIVITY_FIELD_MAPPING = {
     'icon': 'icon',
 }
 
+DICT_FIELDS = ['image', 'other_data', 'icon', ]
+
 
 class DatabaseBackend(BaseBackend):
 
     def __init__(self, db_connection_string=None, verbose=False, poolsize=10,
                  max_overflow=5, **kwargs):
         self._engine = create_engine(db_connection_string, echo=verbose, poolclass=QueuePool,
-                                     pool_size=poolsize, max_overflow=max_overflow)
+                                     pool_size=poolsize, max_overflow=max_overflow, convert_unicode=True)
 
     @property
     def engine(self):
@@ -127,8 +131,8 @@ class DatabaseBackend(BaseBackend):
             return obj
 
         obj_ids = [self._extract_id(o) for o in obj]
-
         s = self._get_select_multiple_objects_query(obj_ids)
+
         results = self.engine.execute(s).fetchall()
         results = map(self._db_schema_to_obj_dict, results)
 
@@ -136,7 +140,9 @@ class DatabaseBackend(BaseBackend):
 
     def obj_delete(self, obj, **kwargs):
         obj_id = self._extract_id(obj)
-        self._objects.new(key=obj_id).delete()
+
+        stmt = self.objects_table.delete().where(self.objects_table.c.id == obj_id)
+        self.engine.execute(stmt)
 
     def activity_exists(self, activity, **kwargs):
         activity_id = self._extract_id(activity)
@@ -208,6 +214,13 @@ class DatabaseBackend(BaseBackend):
 
         return return_val
 
+    def activity_get(self, activity_ids, **kwargs):
+        activity_ids = map(self._extract_id, activity_ids)
+        if not activity_ids:
+            return []
+
+        activities = None
+
     def get_new_id(self):
         """
         Generates a new unique ID. The default implementation uses uuid1 to
@@ -227,8 +240,9 @@ class DatabaseBackend(BaseBackend):
             if obj_field in obj_copy:
                 data = obj_copy.pop(obj_field)
 
-                # SQLAlchemy requires datetime fields to be datetime instances
+                # SQLAlchemy requires datetime fields to be datetime strings
                 if obj_field in Model._datetime_fields:
+                    data = self._get_datetime_obj(data)
                     data = self._get_db_compatiable_date_string(data)
 
                 schema_dict[db_schema_field] = data
@@ -239,6 +253,11 @@ class DatabaseBackend(BaseBackend):
 
         return schema_dict
 
+    def _need_to_parse_json(self, schema_field_name, data):
+        if schema_field_name in DICT_FIELDS and isinstance(data, six.string_types) and data:
+            return True
+        return False
+
     def _convert_to_activity_stream_schema(self, schema_dict, field_mapping):
         # we make a copy because we will be mutating the dict.
         # we will map official fields to db fields, and put the rest in `other_data`
@@ -247,14 +266,21 @@ class DatabaseBackend(BaseBackend):
         for obj_field, db_schema_field in field_mapping.items():
             if db_schema_field in schema_dict:
                 data = schema_dict[db_schema_field]
+                if self._need_to_parse_json(db_schema_field, data):
+                    data = json.loads(data)
 
                 # SQLAlchemy requires datetime fields to be datetime instances
                 if obj_field in Model._datetime_fields:
                     data = self._get_datetime_obj(data)
+                    data = '{}Z'.format(data.isoformat())
+
             obj_dict[obj_field] = data
 
         if 'other_data' in schema_dict:
-            obj_dict.update(schema_dict['other_data'])
+            other_data = schema_dict['other_data']
+            if self._need_to_parse_json('other_data', other_data):
+                other_data = json.loads(other_data)
+            obj_dict.update(other_data)
 
         return obj_dict
 
@@ -301,5 +327,9 @@ class DatabaseBackend(BaseBackend):
         return obj_dict
 
     def _get_select_multiple_objects_query(self, obj_ids):
-        s = sql.select([self.objects_table.c.id]).where(self.objects_table.c.id.in_(obj_ids))
+        s = sql.select(['*']).where(self.objects_table.c.id.in_(obj_ids))
+        return s
+
+    def _get_select_multiple_activities_query(self, activity_ids):
+        s = sql.select(['*']).where(self.activities_table.c.id.in_(activity_ids))
         return s
