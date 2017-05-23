@@ -55,8 +55,6 @@ class BaseBackend(object):
         if activity_id:
             if self.activity_exists(activity, **kwargs):
                 raise SunspearDuplicateEntryException()
-            else:
-                activity_id = activity_id
         else:
             activity_id = self.get_new_id()
 
@@ -434,21 +432,21 @@ class BaseBackend(object):
         """
         Helper that returns an id if the activity has one.
         """
-        this_id = None
         if isinstance(activity_or_id, basestring):
-            this_id = activity_or_id
+            return activity_or_id
         elif isinstance(activity_or_id, dict):
             this_id = activity_or_id.get('id', None)
+            if this_id is None:
+                return None
             try:
-                this_id = str(this_id)
-            except:
-                pass
+                return str(this_id)
+            except Exception:
+                return None
         else:
             try:
-                this_id = str(activity_or_id)
-            except:
-                pass
-        return this_id
+                return str(activity_or_id)
+            except Exception:
+                return None
 
     def _dehydrate_object_keys(self, activity, objects_dict, skip_sub_activities=False):
         for object_key in Model._object_fields + Activity._direct_audience_targeting_fields \
