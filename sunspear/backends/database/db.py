@@ -20,19 +20,19 @@ from __future__ import absolute_import, unicode_literals
 import calendar
 import copy
 import datetime
-import uuid
-import six
 import json
+import uuid
 
-from dateutil.parser import parse
+import six
 from dateutil import tz
-
+from dateutil.parser import parse
 from sqlalchemy import create_engine, sql
 from sqlalchemy.pool import QueuePool
 from sunspear.activitystreams.models import Activity, Model, Object
 from sunspear.backends.base import SUB_ACTIVITY_MAP, BaseBackend
-from sunspear.exceptions import (
-    SunspearOperationNotSupportedException, SunspearValidationException, SunspearDuplicateEntryException)
+from sunspear.exceptions import (SunspearDuplicateEntryException,
+                                 SunspearOperationNotSupportedException,
+                                 SunspearValidationException)
 
 from . import schema
 
@@ -60,7 +60,7 @@ DB_ACTIVITY_FIELD_MAPPING = {
     'icon': 'icon',
 }
 
-DICT_FIELDS = ['image', 'other_data', 'icon', ]
+DICT_FIELDS = Activity._media_fields + Object._media_fields + Activity._object_fields + ['other_data',]
 
 
 class DatabaseBackend(BaseBackend):
@@ -216,10 +216,38 @@ class DatabaseBackend(BaseBackend):
 
     def activity_get(self, activity_ids, **kwargs):
         activity_ids = map(self._extract_id, activity_ids)
+        object_ids = set()
         if not activity_ids:
             return []
 
-        activities = None
+        s = self._get_select_multiple_activities_query(activity_ids)
+        activities = self.engine.execute(s).fetchall()
+        activities = [self._db_schema_to_activity_dict(activity) for activity in activities]
+        activities = self.dehydrate_activities(activities)
+
+        return activities
+
+    def dehydrate_activities(self, activities):
+        """
+        Takes a raw list of activities returned from riak and replace keys with contain ids for riak objects with actual riak object
+        TODO: This can probably be refactored out of the riak backend once everything like
+        sub activities and shared with fields are implemented
+        """
+        # collect a list of unique object ids. We only iterate through the fields that we know
+        # for sure are objects. User is responsible for hydrating all other fields.
+        object_ids = set()
+        for activity in activities:
+            object_ids.update(self._extract_object_keys(activity))
+
+        # Get the objects for the ids we have collected
+        objects = self.get_obj(object_ids)
+        objects_dict = dict(((obj["id"], obj,) for obj in objects))
+
+        # replace the object ids with the hydrated objects
+        for activity in activities:
+            activity = self._dehydrate_object_keys(activity, objects_dict)
+
+        return activities
 
     def get_new_id(self):
         """
@@ -255,7 +283,9 @@ class DatabaseBackend(BaseBackend):
 
     def _need_to_parse_json(self, schema_field_name, data):
         if schema_field_name in DICT_FIELDS and isinstance(data, six.string_types) and data:
-            return True
+            # TODO: This seems hacky. Is there a better way to do this?
+            if '{' in data or '[' in data:
+                return True
         return False
 
     def _convert_to_activity_stream_schema(self, schema_dict, field_mapping):

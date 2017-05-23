@@ -1,9 +1,11 @@
-from sunspear.activitystreams.models import Activity, ReplyActivity, LikeActivity
-from sunspear.exceptions import (
-    SunspearDuplicateEntryException, SunspearInvalidActivityException, SunspearInvalidObjectException)
-
-import uuid
 import copy
+import uuid
+
+from sunspear.activitystreams.models import (Activity, LikeActivity, Model,
+                                             ReplyActivity)
+from sunspear.exceptions import (SunspearDuplicateEntryException,
+                                 SunspearInvalidActivityException,
+                                 SunspearInvalidObjectException)
 
 __all__ = ('BaseBackend', 'SUB_ACTIVITY_MAP')
 
@@ -50,14 +52,17 @@ class BaseBackend(object):
 
     def _resolve_activity_id(self, activity, **kwargs):
         activity_id = self._extract_id(activity)
-        if activity_id and self.activity_exists(activity, **kwargs):
+        if activity_id:
+            if self.activity_exists(activity, **kwargs):
                 raise SunspearDuplicateEntryException()
+            else:
+                activity_id = activity_id
         else:
             activity_id = self.get_new_id()
 
         return activity_id
 
-    #TODO: Tests
+    # TODO: Tests
     def create_activity(self, activity, **kwargs):
         """
         Stores a new ``activity`` in the backend. If an object with the same id already exists in
@@ -398,6 +403,33 @@ class BaseBackend(object):
         """
         return uuid.uuid1().hex
 
+    def _extract_object_keys(self, activity, skip_sub_activities=False):
+        keys = []
+        for object_key in Model._object_fields + Activity._direct_audience_targeting_fields \
+            + Activity._indirect_audience_targeting_fields:
+            if object_key not in activity:
+                continue
+            objects = activity.get(object_key)
+            if isinstance(objects, dict):
+                if objects.get('objectType', None) == 'activity':
+                    keys = keys + self._extract_object_keys(objects)
+                if objects.get('inReplyTo', None):
+                    [keys.extend(self._extract_object_keys(in_reply_to_obj, skip_sub_activities=skip_sub_activities)) \
+                        for in_reply_to_obj in objects['inReplyTo']]
+            if isinstance(objects, list):
+                for item in objects:
+                    if isinstance(item, basestring):
+                        keys.append(item)
+            if isinstance(objects, basestring):
+                keys.append(objects)
+
+        if not skip_sub_activities:
+            for collection in Activity._response_fields:
+                if collection in activity and activity[collection]['items']:
+                    for item in activity[collection]['items']:
+                        keys.extend(self._extract_object_keys(item))
+        return keys
+
     def _extract_id(self, activity_or_id):
         """
         Helper that returns an id if the activity has one.
@@ -417,3 +449,31 @@ class BaseBackend(object):
             except:
                 pass
         return this_id
+
+    def _dehydrate_object_keys(self, activity, objects_dict, skip_sub_activities=False):
+        for object_key in Model._object_fields + Activity._direct_audience_targeting_fields \
+                + Activity._indirect_audience_targeting_fields:
+            if object_key not in activity:
+                continue
+            activity_objects = activity.get(object_key)
+            if isinstance(activity_objects, dict):
+                if activity_objects.get('objectType', None) == 'activity':
+                    activity[object_key] = self._dehydrate_object_keys(activity_objects, objects_dict, skip_sub_activities=skip_sub_activities)
+                if activity_objects.get('inReplyTo', None):
+                    for i, in_reply_to_obj in enumerate(activity_objects['inReplyTo']):
+                        activity_objects['inReplyTo'][i] = \
+                            self._dehydrate_object_keys(activity_objects['inReplyTo'][i], \
+                                objects_dict, skip_sub_activities=skip_sub_activities)
+            if isinstance(activity_objects, list):
+                for i, obj_id in enumerate(activity_objects):
+                    if isinstance(activity[object_key][i], basestring):
+                        activity[object_key][i] = objects_dict.get(obj_id, {})
+            if isinstance(activity_objects, basestring):
+                activity[object_key] = objects_dict.get(activity_objects, {})
+
+        if not skip_sub_activities:
+            for collection in Activity._response_fields:
+                if collection in activity and activity[collection]['items']:
+                    for i, item in enumerate(activity[collection]['items']):
+                        activity[collection]['items'][i] = self._dehydrate_object_keys(item, objects_dict)
+        return activity

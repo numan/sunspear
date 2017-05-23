@@ -138,13 +138,14 @@ class TestDatabaseBackend(object):
             'generator': 'mobile:phone:android',
             'provider': 'mobile:phone:android',
             'content': 'foo baz',
-            'published': self.now,
-            'updated': self.now,
+            'published': self._datetime_to_string(self.now),
+            'updated': self._datetime_to_string(self.now),
             'icon': {
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
                 'width': '500px',
-                'height': '500px'
+                'height': '500px',
+                'id': 'icon:1'
             },
             'foo': 'bar',
             'baz': u'go\u0298',
@@ -161,7 +162,8 @@ class TestDatabaseBackend(object):
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
                 'width': '500px',
-                'height': '500px'
+                'height': '500px',
+                'id': 'img:1',
             },
             'foo': 'bar',
             'baz': u'go\u0298',
@@ -176,7 +178,8 @@ class TestDatabaseBackend(object):
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
                 'width': '500px',
-                'height': '500px'
+                'height': '500px',
+                'id': 'img:2',
             },
             'foo': 'bar',
             'baz': u'go\u0298',
@@ -191,7 +194,8 @@ class TestDatabaseBackend(object):
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
                 'width': '500px',
-                'height': '500px'
+                'height': '500px',
+                'id': 'img:3',
             },
             'foo': 'bar',
             'baz': u'go\u0298',
@@ -206,7 +210,8 @@ class TestDatabaseBackend(object):
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
                 'width': '500px',
-                'height': '500px'
+                'height': '500px',
+                'id': 'img:4',
             },
             'foo': 'bar',
             'baz': u'go\u0298',
@@ -221,7 +226,8 @@ class TestDatabaseBackend(object):
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
                 'width': '500px',
-                'height': '500px'
+                'height': '500px',
+                'id': 'img:5',
             },
             'foo': 'bar',
             'baz': u'go\u0298',
@@ -325,7 +331,6 @@ class TestDatabaseBackend(object):
         obj_id = self.test_obj['id']
 
         self._insert_obj(self.test_obj)
-        print self.test_obj
 
         objs = self._backend.obj_get([obj_id])
         eq_(objs[0], self.test_obj)
@@ -387,6 +392,17 @@ class TestDatabaseBackend(object):
     def test_create_activity_with_non_existing_objects_doesnt_work(self):
         assert_raises(IntegrityError, self._backend.create_activity, self.test_activity)
         ok_(not self._backend.activity_exists(self.test_activity))
+
+    def test_get_activities(self):
+        activity_copy = copy.deepcopy(self.hydrated_test_activity)
+
+        self._backend.create_activity(self.hydrated_test_activity)
+        activity = self._backend.get_activity(self.hydrated_test_activity['id'])[0]
+
+        # Updated is changed when an activity is saved
+        activity_copy['updated'] = activity['updated']
+
+        eq_(activity, activity_copy)
 
     def _datetime_to_db_compatibal_str(self, datetime_instance):
         return datetime_instance.strftime('%Y-%m-%d %H:%M:%S')
