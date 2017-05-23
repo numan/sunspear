@@ -2,11 +2,11 @@ language: python
 python:
     - "2.7"
 before_install:
-    - sudo apt-get update
-    - sudo apt-get -o Dpkg::Options::="--force-confnew" -qq -y upgrade
+    - sudo apt-get update -qq
     - sudo apt-get install -qq protobuf-compiler
 services:
     - riak
+    - mysql
 install:
-    - pip install -q -e . --use-mirrors
+    - pip install -q -e .
 script: python setup.py nosetests

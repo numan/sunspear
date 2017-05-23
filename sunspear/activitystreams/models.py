@@ -46,7 +46,7 @@ class Model(object):
         for field in self._reserved_fields:
             if self._dict.get(field, None) is not None\
                 and field not in ['updated', 'published']:
-                #updated and publised are special eceptions because if they are in reserved fields, the'll be overridden
+                # updated and publised are special eceptions because if they are in reserved fields, the'll be overridden
                 raise SunspearValidationException("Reserved field name used: %s" % field)
 
         for field in self._media_fields:
@@ -64,31 +64,31 @@ class Model(object):
                         Object(sub_obj, backend=self._backend).validate()
 
     def parse_data(self, data, *args, **kwargs):
-        #TODO Rename to jsonify_dict
+        # TODO Rename to jsonify_dict
         _parsed_data = data.copy()
 
-        #parse datetime fields
+        # parse datetime fields
         for d in self._datetime_fields:
             if d in _parsed_data and _parsed_data[d]:
                 _parsed_data[d] = self._parse_date(_parsed_data[d], utc=True, use_system_timezone=False)
 
-        #parse object fields
+        # parse object fields
         for c in self._object_fields:
             if c in _parsed_data and _parsed_data[c] and isinstance(_parsed_data[c], Model):
                 _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
 
-        #parse direct and indirect audience targeting
+        # parse direct and indirect audience targeting
         for c in self._indirect_audience_targeting_fields + self._direct_audience_targeting_fields:
             if c in _parsed_data and _parsed_data[c]:
                 _parsed_data[c] = [obj.parse_data(obj.get_dict()) if isinstance(obj, Model) else obj\
                     for obj in _parsed_data[c]]
 
-        #parse media fields
+        # parse media fields
         for c in self._media_fields:
             if c in _parsed_data and _parsed_data[c] and isinstance(_parsed_data[c], Model):
                 _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
 
-        #parse anything that is a dictionary for things like datetime fields that are datetime objects
+        # parse anything that is a dictionary for things like datetime fields that are datetime objects
         for k, v in _parsed_data.items():
             if isinstance(v, dict) and k not in self._response_fields:
                 _parsed_data[k] = self.parse_data(v)
@@ -96,8 +96,7 @@ class Model(object):
         return _parsed_data
 
     def get_parsed_dict(self, *args, **kwargs):
-
-        #we are suppose to maintain our own published and updated fields
+        # we are suppose to maintain our own published and updated fields
         if not self._dict.get('published', None):
             self._dict['published'] = datetime.datetime.utcnow()
         elif 'updated' in self._reserved_fields:

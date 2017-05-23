@@ -22,7 +22,7 @@ class TestRFC3339(object):
     def test_datetime(self):
         d = datetime.datetime.now()
         eq_(rfc3339(d),
-                         d.strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
+            d.strftime('%Y-%m-%dT%H:%M:%S') + self.local_timezone)
 
     def test_datetime_timezone(self):
 

@@ -10,7 +10,7 @@ tests_require=[
 setup(
     name="sunspear",
     license='Apache License 2.0',
-    version="0.3.1",
+    version="0.3.3",
     description="Activity streams backed by Riak.",
     zip_safe=False,
     long_description=open('README.rst', 'r').read(),
@@ -23,6 +23,9 @@ setup(
         'riak==2.5.4',
         'python-dateutil==1.5',
         'protobuf==2.6.1',
+        'sqlalchemy==1.1.3',
+        'MySQL-python==1.2.5',
+        'six'
     ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
     tests_require=tests_require,

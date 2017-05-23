@@ -1,5 +1,5 @@
 """
-Copyright 2013 Numan Sachwani <numan856@gmail.com>
+Copyright 2016 Numan Sachwani <numan856@gmail.com>
 
 This file is provided to you under the Apache License,
 Version 2.0 (the "License"); you may not use this file
@@ -18,7 +18,7 @@ under the License.
 from __future__ import absolute_import
 
 from sunspear.activitystreams.models import Object, Activity, Model
-from sunspear.exceptions import (SunspearValidationException)
+from sunspear.exceptions import SunspearValidationException
 from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
 
 from riak import RiakClient
@@ -145,8 +145,6 @@ JS_REDUCE_OBJS = """
 
 
 class RiakBackend(BaseBackend):
-    custom_epoch = datetime.datetime(month=1, day=1, year=2013)
-
     def __init__(
         self, protocol="pbc", nodes=[], objects_bucket_name="objects",
             activities_bucket_name="activities", **kwargs):
@@ -464,39 +462,39 @@ class RiakBackend(BaseBackend):
         """
         activities = self._extract_sub_activities(activities)
 
-        #collect a list of unique object ids. We only iterate through the fields that we know
-        #for sure are objects. User is responsible for hydrating all other fields.
+        # collect a list of unique object ids. We only iterate through the fields that we know
+        # for sure are objects. User is responsible for hydrating all other fields.
         object_ids = set()
         for activity in activities:
             object_ids.update(self._extract_object_keys(activity))
 
-        #Get the objects for the ids we have collected
+        # Get the objects for the ids we have collected
         objects = self.get_obj(object_ids)
         objects_dict = dict(((obj["id"], obj,) for obj in objects))
 
-        #We also need to extract any activities that were diguised as objects. IE activities with
-        #objectType=activity
+        # We also need to extract any activities that were diguised as objects. IE activities with
+        # objectType=activity
         activities_in_objects_ids = set()
 
-        #replace the object ids with the hydrated objects
+        # replace the object ids with the hydrated objects
         for activity in activities:
             activity = self._dehydrate_object_keys(activity, objects_dict)
-            #Extract keys of any activities that were objects
+            # Extract keys of any activities that were objects
             activities_in_objects_ids.update(self._extract_activity_keys(activity, skip_sub_activities=True))
 
-        #If we did have activities that were objects, we need to hydrate those activities and
-        #the objects for those activities
+        # If we did have activities that were objects, we need to hydrate those activities and
+        # the objects for those activities
         if activities_in_objects_ids:
             sub_activities = self._get_many_activities(activities_in_objects_ids)
             activities_in_objects_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
             for activity in activities:
                 activity = self._dehydrate_sub_activity(activity, activities_in_objects_dict, skip_sub_activities=True)
 
-                #we have to do one more round of object dehydration for our new sub-activities
+                # we have to do one more round of object dehydration for our new sub-activities
                 object_ids.update(self._extract_object_keys(activity))
 
-            #now get all the objects we don't already have and for sub-activities and and hydrate them into
-            #our list of activities
+            # now get all the objects we don't already have and for sub-activities and and hydrate them into
+            # our list of activities
             object_ids -= set(objects_dict.keys())
             objects = self.get_obj(object_ids)
             for obj in objects:
@@ -526,7 +524,7 @@ class RiakBackend(BaseBackend):
                 for sub_activity in sub_activities:
                     activities_dict[sub_activity["id"]] = sub_activity
 
-            #Dehydrate out any subactivities we may have
+            # Dehydrate out any subactivities we may have
             for activity in activities:
                 activity = self._dehydrate_sub_activity(activity, activities_dict)
 
@@ -577,61 +575,6 @@ class RiakBackend(BaseBackend):
 
         return sub_activity
 
-    def _extract_object_keys(self, activity, skip_sub_activities=False):
-        keys = []
-        for object_key in Model._object_fields + Activity._direct_audience_targeting_fields \
-            + Activity._indirect_audience_targeting_fields:
-            if object_key not in activity:
-                continue
-            objects = activity.get(object_key)
-            if isinstance(objects, dict):
-                if objects.get('objectType', None) == 'activity':
-                    keys = keys + self._extract_object_keys(objects)
-                if objects.get('inReplyTo', None):
-                    [keys.extend(self._extract_object_keys(in_reply_to_obj, skip_sub_activities=skip_sub_activities)) \
-                        for in_reply_to_obj in objects['inReplyTo']]
-            if isinstance(objects, list):
-                for item in objects:
-                    if isinstance(item, basestring):
-                        keys.append(item)
-            if isinstance(objects, basestring):
-                keys.append(objects)
-
-        if not skip_sub_activities:
-            for collection in Activity._response_fields:
-                if collection in activity and activity[collection]['items']:
-                    for item in activity[collection]['items']:
-                        keys.extend(self._extract_object_keys(item))
-        return keys
-
-    def _dehydrate_object_keys(self, activity, objects_dict, skip_sub_activities=False):
-        for object_key in Model._object_fields + Activity._direct_audience_targeting_fields \
-                + Activity._indirect_audience_targeting_fields:
-            if object_key not in activity:
-                continue
-            activity_objects = activity.get(object_key)
-            if isinstance(activity_objects, dict):
-                if activity_objects.get('objectType', None) == 'activity':
-                    activity[object_key] = self._dehydrate_object_keys(activity_objects, objects_dict, skip_sub_activities=skip_sub_activities)
-                if activity_objects.get('inReplyTo', None):
-                    for i, in_reply_to_obj in enumerate(activity_objects['inReplyTo']):
-                        activity_objects['inReplyTo'][i] = \
-                            self._dehydrate_object_keys(activity_objects['inReplyTo'][i], \
-                                objects_dict, skip_sub_activities=skip_sub_activities)
-            if isinstance(activity_objects, list):
-                for i, obj_id in enumerate(activity_objects):
-                    if isinstance(activity[object_key][i], basestring):
-                        activity[object_key][i] = objects_dict.get(obj_id, {})
-            if isinstance(activity_objects, basestring):
-                activity[object_key] = objects_dict.get(activity_objects, {})
-
-        if not skip_sub_activities:
-            for collection in Activity._response_fields:
-                if collection in activity and activity[collection]['items']:
-                    for i, item in enumerate(activity[collection]['items']):
-                        activity[collection]['items'][i] = self._dehydrate_object_keys(item, objects_dict)
-        return activity
-
     def _get_many_activities(self, activity_ids=[], raw_filter="", filters=None, include_public=False, audience_targeting={}):
         """
         Given a list of activity ids, returns a list of activities from riak.
@@ -672,32 +615,12 @@ class RiakBackend(BaseBackend):
         results = results.reduce(JS_REDUCE).run()
         results = results or []
 
-        #riak does not return the results in any particular order (unless we sort). So,
-        #we have to put the objects returned by riak back in order
+        # riak does not return the results in any particular order (unless we sort). So,
+        # we have to put the objects returned by riak back in order
         results_map = dict(map(lambda result: (result['id'], result,), results))
         reordered_results = [results_map[id] for id in activity_ids if id in results_map]
 
         return reordered_results
-
-    def _extract_id(self, activity_or_id):
-        """
-        Helper that returns an id if the activity has one.
-        """
-        this_id = None
-        if isinstance(activity_or_id, basestring):
-            this_id = activity_or_id
-        elif isinstance(activity_or_id, dict):
-            this_id = activity_or_id.get('id', None)
-            try:
-                this_id = str(this_id)
-            except:
-                pass
-        else:
-            try:
-                this_id = str(activity_or_id)
-            except:
-                pass
-        return this_id
 
     def _get_timestamp(self):
         """
@@ -714,5 +637,3 @@ class RiakBackend(BaseBackend):
         :return: a new id
         """
         return uuid.uuid1().hex
-        # now = datetime.datetime.utcnow()
-        # return str(long(calendar.timegm(now.utctimetuple()) - calendar.timegm(self.custom_epoch.utctimetuple())) + now.microsecond)

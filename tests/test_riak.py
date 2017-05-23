@@ -1,13 +1,13 @@
 from __future__ import absolute_import
 
-from nose.tools import ok_, eq_, set_trace, raises
-from mock import MagicMock, call, ANY
+import datetime
 
-from sunspear.exceptions import SunspearValidationException
+from mock import ANY, MagicMock, call
 from sunspear.aggregators.property import PropertyAggregator
 from sunspear.backends.riak import RiakBackend
+from sunspear.exceptions import SunspearValidationException
 
-import datetime
+from nose.tools import eq_, ok_, raises
 
 riak_connection_options = {
     "nodes": [
@@ -1703,10 +1703,10 @@ class TestIndexes(object):
 
         self._backend.create_obj(actor2)
 
-        #create the activity
+        # create the activity
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
-        #now create a reply for the activity
+        # now create a reply for the activity
         like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
             5, actor2_id, "", sub_activity_verb='like')
 
@@ -1719,4 +1719,3 @@ class TestIndexes(object):
         eq_(filter(lambda x: x[0] == 'actor_bin', riak_obj.indexes)[0][1], actor2_id)
         eq_(filter(lambda x: x[0] == 'object_bin', riak_obj.indexes)[0][1], like_activity_dict['object']['id'])
         eq_(filter(lambda x: x[0] == 'inreplyto_bin', riak_obj.indexes)[0][1], '5')
-
