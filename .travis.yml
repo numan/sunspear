@@ -6,6 +6,7 @@ before_install:
     - sudo apt-get install -qq protobuf-compiler
 services:
     - riak
+    - mysql
 install:
     - pip install -q -e .
 script: python setup.py nosetests
