@@ -11,7 +11,7 @@ from nose.tools import eq_, ok_, raises
 
 riak_connection_options = {
     "nodes": [
-        {'http_port': 8098, 'host': '192.168.99.100'}],
+        {'http_port': 8098, 'host': '127.0.0.1'}],
     'protocol': 'http',
     # "nodes": [{'host': '127.0.0.1', 'pb_port': 10017}, {'host': '127.0.0.1', 'pb_port': 10027}, {'host': '127.0.0.1', 'pb_port': 10037}],
 }
