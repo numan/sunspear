@@ -223,11 +223,11 @@ class DatabaseBackend(BaseBackend):
         s = self._get_select_multiple_activities_query(activity_ids)
         activities = self.engine.execute(s).fetchall()
         activities = [self._db_schema_to_activity_dict(activity) for activity in activities]
-        activities = self.dehydrate_activities(activities)
+        activities = self.hydrate_activities(activities)
 
         return activities
 
-    def dehydrate_activities(self, activities):
+    def hydrate_activities(self, activities):
         """
         Takes a raw list of activities returned from riak and replace keys with contain ids for riak objects with actual riak object
         TODO: This can probably be refactored out of the riak backend once everything like
