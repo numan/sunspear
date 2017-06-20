@@ -82,6 +82,14 @@ class DatabaseBackend(BaseBackend):
     def objects_table(self):
         return schema.tables['objects']
 
+    @property
+    def likes_table(self):
+        return schema.tables['likes']
+
+    @property
+    def replies_table(self):
+        return schema.tables['replies']
+
     def _get_connection(self):
         return self.engine.connect()
 
@@ -164,6 +172,8 @@ class DatabaseBackend(BaseBackend):
 
         self.engine.execute(self.activities_table.insert(), [activity_db_schema_dict])
 
+        return self.get_activity(activity_dict)
+
     def create_activity(self, activity, **kwargs):
         activity_id = self._resolve_activity_id(activity, **kwargs)
         activity['id'] = activity_id
@@ -215,17 +225,34 @@ class DatabaseBackend(BaseBackend):
         return return_val
 
     def activity_get(self, activity_ids, **kwargs):
-        activity_ids = map(self._extract_id, activity_ids)
-        object_ids = set()
-        if not activity_ids:
-            return []
-
-        s = self._get_select_multiple_activities_query(activity_ids)
-        activities = self.engine.execute(s).fetchall()
-        activities = [self._db_schema_to_activity_dict(activity) for activity in activities]
+        activity_ids = self._listify(activity_ids)
+        activities = self._get_raw_activities(activity_ids, **kwargs)
         activities = self.hydrate_activities(activities)
 
         return activities
+
+    def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="", published=None, **kwargs):
+        object_type = kwargs.get('object_type', sub_activity_verb)
+        sub_activity_model = self.get_sub_activity_model(sub_activity_verb)
+        sub_activity_attribute = self.get_sub_activity_attribute(sub_activity_verb)
+
+        activity_id = self._extract_id(activity)
+        raw_activity = self._get_raw_activities([activity_id])[0]
+        activity_model = Activity(raw_activity, backend=self)
+
+        sub_activity_table = getattr(self, '{}_table'.format(sub_activity_attribute))
+
+        sub_activity, original_activity = activity_model\
+            .get_parsed_sub_activity_dict(
+                actor=actor, content=content, verb=sub_activity_verb,
+                object_type=object_type, collection=sub_activity_attribute,
+                activity_class=sub_activity_model, published=published, extra=extra)
+
+        sub_activity = self.create_activity(sub_activity)[0]
+        sub_activity_db_schema = self._convert_sub_activity_to_db_schema(sub_activity, original_activity)
+        self.engine.execute(sub_activity_table.insert(), [sub_activity_db_schema])
+
+        return sub_activity, original_activity
 
     def hydrate_activities(self, activities):
         """
@@ -257,6 +284,33 @@ class DatabaseBackend(BaseBackend):
         :return: a new id
         """
         return uuid.uuid1().hex
+
+    def _get_raw_activities(self, activity_ids, **kwargs):
+        activity_ids = map(self._extract_id, activity_ids)
+        if not activity_ids:
+            return []
+
+        s = self._get_select_multiple_activities_query(activity_ids)
+        activities = self.engine.execute(s).fetchall()
+        activities = [self._db_schema_to_activity_dict(activity) for activity in activities]
+
+        return activities
+
+    def _convert_sub_activity_to_db_schema(self, sub_activity, activity):
+        # Find all the fields in the sub activity that aren't part of the standard activity object
+        converted_subactivity = self._activity_dict_to_db_schema(sub_activity)
+        other_data = converted_subactivity.get('other_data')
+        sub_activity = {
+            'id': sub_activity['id'],
+            'in_reply_to': activity['id'],
+            'actor': sub_activity['actor']['id'],
+            'published': self._get_db_compatiable_date_string(sub_activity['published']),
+            'updated': self._get_db_compatiable_date_string(sub_activity['published']),
+            'content': sub_activity['object']['content'],
+        }
+        if other_data:
+            sub_activity['other_data'] = other_data
+        return sub_activity
 
     def _convert_to_db_schema(self, obj, field_mapping):
         # we make a copy because we will be mutating the dict.
@@ -306,7 +360,7 @@ class DatabaseBackend(BaseBackend):
 
             obj_dict[obj_field] = data
 
-        if 'other_data' in schema_dict:
+        if 'other_data' in schema_dict and schema_dict['other_data'] is not None:
             other_data = schema_dict['other_data']
             if self._need_to_parse_json('other_data', other_data):
                 other_data = json.loads(other_data)

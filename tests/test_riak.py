@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import datetime
+import os
 
 from mock import ANY, MagicMock, call
 from sunspear.aggregators.property import PropertyAggregator
@@ -11,7 +12,7 @@ from nose.tools import eq_, ok_, raises
 
 riak_connection_options = {
     "nodes": [
-        {'http_port': 8098, 'host': '127.0.0.1'}],
+        {'http_port': 8098, 'host': os.environ.get('RIAK_HOST', '127.0.0.1')}],
     'protocol': 'http',
     # "nodes": [{'host': '127.0.0.1', 'pb_port': 10017}, {'host': '127.0.0.1', 'pb_port': 10027}, {'host': '127.0.0.1', 'pb_port': 10037}],
 }
