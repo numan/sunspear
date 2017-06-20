@@ -404,6 +404,23 @@ class TestDatabaseBackend(object):
 
         eq_(activity, activity_copy)
 
+    def test_create_reply(self):
+        actor_id = '1234'
+        published_time = datetime.datetime.utcnow()
+
+        actor = {"objectType": "something", "id": actor_id, "published": published_time}
+
+        # create the activity
+        self._backend.create_activity(self.hydrated_test_activity)
+
+        # now create a reply for the activity
+        reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+            self.hydrated_test_activity, actor, "This is a reply.",
+            sub_activity_verb='reply')
+
+        sub_activity_exists = self._engine.execute(sql.select([sql.exists().where(self._backend.replies_table.c.id == reply_activity_dict['id'])])).scalar()
+        ok_(sub_activity_exists)
+
     def _datetime_to_db_compatibal_str(self, datetime_instance):
         return datetime_instance.strftime('%Y-%m-%d %H:%M:%S')
 

@@ -17,16 +17,15 @@ under the License.
 """
 from __future__ import absolute_import
 
-from sunspear.activitystreams.models import Object, Activity, Model
-from sunspear.exceptions import SunspearValidationException
-from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
-
-from riak import RiakClient
-
-import uuid
+import calendar
 import copy
 import datetime
-import calendar
+import uuid
+
+from riak import RiakClient
+from sunspear.activitystreams.models import Activity, Model, Object
+from sunspear.backends.base import SUB_ACTIVITY_MAP, BaseBackend
+from sunspear.exceptions import SunspearValidationException
 
 __all__ = ('RiakBackend', )
 
@@ -374,18 +373,11 @@ class RiakBackend(BaseBackend):
                 activities = aggregator.process(activities, original_activities, aggregation_pipeline)
         return activities
 
-    def create_sub_activity(self, activity, actor, content, extra={}, sub_activity_verb="", **kwargs):
-        if sub_activity_verb.lower() not in SUB_ACTIVITY_MAP:
-            raise Exception('Verb not supported')
-        return super(RiakBackend, self).create_sub_activity(
-            activity, actor, content, extra=extra,
-            sub_activity_verb=sub_activity_verb, **kwargs)
-
     def sub_activity_create(
         self, activity, actor, content, extra={}, sub_activity_verb="",
             published=None, **kwargs):
-        sub_activity_model = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][0]
-        sub_activity_attribute = SUB_ACTIVITY_MAP[sub_activity_verb.lower()][1]
+        sub_activity_model = self.get_sub_activity_model(sub_activity_verb)
+        sub_activity_attribute = self.get_sub_activity_attribute(sub_activity_verb)
         object_type = kwargs.get('object_type', sub_activity_verb)
 
         activity_id = self._extract_id(activity)
