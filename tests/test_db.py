@@ -71,7 +71,7 @@ class TestDatabaseBackend(object):
 
         # Create database if not exists
         if db_name not in existing_databases:
-            conn.execute("CREATE DATABASE {0}".format(db_name))
+            conn.execute("CREATE DATABASE {0} character set UTF8mb4 collate utf8mb4_bin".format(db_name))
             print("Created database {0}".format(db_name))
 
         conn.close()
