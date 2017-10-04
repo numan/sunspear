@@ -108,22 +108,72 @@ class TestDatabaseBackend(object):
         self.test_db_schema_dict = self.test_db_schema_dicts[0]
 
     def _setup_objs(self):
-        self.test_objs = [{
-            'id': 'AxsdSG244BfduiIZ',
-            'objectType': u'use\u0403',
-            'displayName': u'\u019duman S',
-            'content': u'Foo bar!\u03ee',
-            'published': self._datetime_to_string(self.now),
-            'image': {
-                'url': 'https://www.google.com/cool_image.png',
-                'displayName': u'Cool \u0268mage',
-                'width': '500px',
-                'height': '500px'
+        self.test_objs = [
+            {
+                'id': 'AxsdSG244BfduiIZ',
+                'objectType': u'use\u0403',
+                'displayName': u'\u019duman S',
+                'content': u'Foo bar!\u03ee',
+                'published': self._datetime_to_string(self.now),
+                'image': {
+                    'url': 'https://www.google.com/cool_image.png',
+                    'displayName': u'Cool \u0268mage',
+                    'width': '500px',
+                    'height': '500px'
+                },
+                'foo': 'bar',
+                'baz': u'go\u0298',
+                'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
             },
-            'foo': 'bar',
-            'baz': u'go\u0298',
-            'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
-        }]
+            {
+                'id': '1000',
+                'objectType': u'user',
+                'displayName': u'\u019duman S2',
+                'content': u'Foo bar!\u03ee',
+                'published': self._datetime_to_string(self.now),
+                'image': {
+                    'url': 'https://www.google.com/cool_image.png',
+                    'displayName': u'Cool \u0268mage',
+                    'width': '500px',
+                    'height': '500px'
+                },
+                'foo': 'bar',
+                'baz': u'go\u0298',
+                'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+            },
+            {
+                'id': '1001',
+                'objectType': u'user',
+                'displayName': u'\u019duman S3',
+                'content': u'Foo bar!\u03ee',
+                'published': self._datetime_to_string(self.now),
+                'image': {
+                    'url': 'https://www.google.com/cool_image.png',
+                    'displayName': u'Cool \u0268mage',
+                    'width': '500px',
+                    'height': '500px'
+                },
+                'foo': 'bar',
+                'baz': u'go\u0298',
+                'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+            },
+            {
+                'id': '1002',
+                'objectType': u'user',
+                'displayName': u'\u019duman S4',
+                'content': u'Foo bar!\u03ee',
+                'published': self._datetime_to_string(self.now),
+                'image': {
+                    'url': 'https://www.google.com/cool_image.png',
+                    'displayName': u'Cool \u0268mage',
+                    'width': '500px',
+                    'height': '500px'
+                },
+                'foo': 'bar',
+                'baz': u'go\u0298',
+                'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}}
+            }
+        ]
 
         self.test_obj = self.test_objs[0]
 
@@ -364,6 +414,25 @@ class TestDatabaseBackend(object):
     def test_create_activity(self):
         self._backend.create_activity(self.hydrated_test_activity)
         ok_(self._backend.activity_exists(self.hydrated_test_activity))
+
+    def test_create_activity_with_audience_targeting(self):
+        db_obj = self._backend._obj_dict_to_db_schema(self.test_objs[3])
+        objects_table = self._backend.objects_table
+        self._engine.execute(objects_table.insert(), db_obj)
+
+        self.hydrated_test_activity['to'] = [self.test_objs[0]]
+        self.hydrated_test_activity['bto'] = [self.test_objs[1]]
+        self.hydrated_test_activity['cc'] = [self.test_objs[0], self.test_objs[1]]
+        self.hydrated_test_activity['bcc'] = [self.test_objs[2], self.test_objs[3]['id']]
+
+        self._backend.create_activity(self.hydrated_test_activity)
+
+        ok_(self._backend.activity_exists(self.hydrated_test_activity))
+
+        ok_(self._backend.obj_exists(self.test_objs[0]))
+        ok_(self._backend.obj_exists(self.test_objs[1]))
+        ok_(self._backend.obj_exists(self.test_objs[2]))
+        ok_(self._backend.obj_exists(self.test_objs[3]))
 
     def test_create_activity_with_already_existing_objs(self):
         db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
