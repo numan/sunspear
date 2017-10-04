@@ -174,6 +174,17 @@ class DatabaseBackend(BaseBackend):
 
         return self.get_activity(activity_dict)
 
+    def _extract_activity_obj_key(self, obj_or_value):
+        activity_obj = None
+
+        if isinstance(obj_or_value, dict):
+            activity_obj_id = self._extract_id(obj_or_value)
+            activity_obj = obj_or_value
+        else:
+            activity_obj_id = obj_or_value
+
+        return activity_obj, activity_obj_id
+
     def create_activity(self, activity, **kwargs):
         activity_id = self._resolve_activity_id(activity, **kwargs)
         activity['id'] = activity_id
@@ -183,15 +194,27 @@ class DatabaseBackend(BaseBackend):
         activity_objs = {}
         ids_of_objs_with_no_dict = []
 
+        audience_targeting_fields = Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields
+
         for key, value in activity_copy.items():
             if key in Activity._object_fields:
-                if isinstance(value, dict):
-                    activity_obj_id = self._extract_id(value)
-                    activity_objs[activity_obj_id] = value
-
+                activity_obj, activity_obj_id = self._extract_activity_obj_key(value)
+                if activity_obj:
+                    activity_objs[activity_obj_id] = activity_obj
                     activity[key] = activity_obj_id
                 else:
-                    ids_of_objs_with_no_dict.append(value)
+                    ids_of_objs_with_no_dict.append(activity_obj_id)
+
+            if key in audience_targeting_fields and value:
+                activity_audience_targeting_objs = []
+                for activity_obj_or_value in value:
+                    activity_obj, activity_obj_id = self._extract_activity_obj_key(activity_obj_or_value)
+                    if activity_obj:
+                        activity_objs[activity_obj_id] = activity_obj
+                        activity_audience_targeting_objs.append(activity_obj_id)
+                    else:
+                        ids_of_objs_with_no_dict.append(activity_obj_id)
+                activity[key] = activity_audience_targeting_objs
 
         # For all of the objects in the activity, find out which ones actually already have existing
         # objects in the database
