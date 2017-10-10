@@ -21,7 +21,7 @@ setup(
     test_suite='nose.collector',
     install_requires=[
         'riak==2.5.4',
-        'python-dateutil==1.5',
+        'python-dateutil>=1.5, != 2.0',
         'protobuf==2.6.1',
     ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
