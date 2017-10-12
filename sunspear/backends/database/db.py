@@ -90,6 +90,22 @@ class DatabaseBackend(BaseBackend):
     def replies_table(self):
         return schema.tables['replies']
 
+    @property
+    def to_table(self):
+        return schema.tables['to']
+
+    @property
+    def bto_table(self):
+        return schema.tables['bto']
+
+    @property
+    def cc_table(self):
+        return schema.tables['cc']
+
+    @property
+    def bcc_table(self):
+        return schema.tables['bcc']
+
     def _get_connection(self):
         return self.engine.connect()
 
@@ -122,6 +138,10 @@ class DatabaseBackend(BaseBackend):
         objs_db_table = self.objects_table
 
         return self.engine.execute(sql.select([sql.exists().where(objs_db_table.c.id == obj_id)])).scalar()
+
+    def audience_targeting_exists(self, targeting_type, activity_id, object_id):
+        audience_table = self._get_audience_targeting_table(targeting_type)
+        return self.engine.execute(sql.select([sql.exists().where((audience_table.c.activity == activity_id) & (audience_table.c.object == object_id))])).scalar()
 
     def obj_update(self, obj, **kwargs):
         obj_dict = self._get_parsed_and_validated_obj_dict(obj)
@@ -193,6 +213,7 @@ class DatabaseBackend(BaseBackend):
 
         activity_objs = {}
         ids_of_objs_with_no_dict = []
+        audience_targeting_map = {}
 
         audience_targeting_fields = Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields
 
@@ -214,7 +235,9 @@ class DatabaseBackend(BaseBackend):
                         activity_audience_targeting_objs.append(activity_obj_id)
                     else:
                         ids_of_objs_with_no_dict.append(activity_obj_id)
+                        activity_audience_targeting_objs.append(activity_obj_id)
                 activity[key] = activity_audience_targeting_objs
+                audience_targeting_map[key] = activity_audience_targeting_objs
 
         # For all of the objects in the activity, find out which ones actually already have existing
         # objects in the database
@@ -244,6 +267,16 @@ class DatabaseBackend(BaseBackend):
                     self.objects_table.update().where(self.objects_table.c.id == self._extract_id(obj)).values(**obj))
 
         return_val = self.activity_create(activity, **kwargs)
+
+        # Insert objects for audience targeting
+        if audience_targeting_map:
+            for audience_targeting_field, values in audience_targeting_map.items():
+                with self.engine.begin() as connection:
+                    audience_table = self._get_audience_targeting_table(audience_targeting_field)
+
+                    stmt = audience_table.delete().where(audience_table.c.activity == return_val[0]['id'])
+                    self.engine.execute(stmt)
+                    connection.execute(audience_table.insert(), [{'object': obj, 'activity': return_val[0]['id']} for obj in values])
 
         return return_val
 
@@ -307,6 +340,10 @@ class DatabaseBackend(BaseBackend):
         :return: a new id
         """
         return uuid.uuid1().hex
+
+    def _get_audience_targeting_table(self, targeting_type):
+        audience_table_string = "{}_table".format(targeting_type)
+        return getattr(self, audience_table_string)
 
     def _get_raw_activities(self, activity_ids, **kwargs):
         activity_ids = map(self._extract_id, activity_ids)

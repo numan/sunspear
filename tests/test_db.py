@@ -416,6 +416,7 @@ class TestDatabaseBackend(object):
         ok_(self._backend.activity_exists(self.hydrated_test_activity))
 
     def test_create_activity_with_audience_targeting(self):
+        # We are going to insert one object by id just to make sure it works when we just insert by id
         db_obj = self._backend._obj_dict_to_db_schema(self.test_objs[3])
         objects_table = self._backend.objects_table
         self._engine.execute(objects_table.insert(), db_obj)
@@ -426,6 +427,7 @@ class TestDatabaseBackend(object):
         self.hydrated_test_activity['bcc'] = [self.test_objs[2], self.test_objs[3]['id']]
 
         self._backend.create_activity(self.hydrated_test_activity)
+        activity_id = self.hydrated_test_activity['id']
 
         ok_(self._backend.activity_exists(self.hydrated_test_activity))
 
@@ -433,6 +435,13 @@ class TestDatabaseBackend(object):
         ok_(self._backend.obj_exists(self.test_objs[1]))
         ok_(self._backend.obj_exists(self.test_objs[2]))
         ok_(self._backend.obj_exists(self.test_objs[3]))
+
+        ok_(self._backend.audience_targeting_exists('to', activity_id, self.test_objs[0]['id']))
+        ok_(self._backend.audience_targeting_exists('bto', activity_id, self.test_objs[1]['id']))
+        ok_(self._backend.audience_targeting_exists('cc', activity_id, self.test_objs[0]['id']))
+        ok_(self._backend.audience_targeting_exists('cc', activity_id, self.test_objs[1]['id']))
+        ok_(self._backend.audience_targeting_exists('bcc', activity_id, self.test_objs[2]['id']))
+        ok_(self._backend.audience_targeting_exists('bcc', activity_id, self.test_objs[3]['id']))
 
     def test_create_activity_with_already_existing_objs(self):
         db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
