@@ -254,3 +254,9 @@ class Object(Model):
 
 class MediaLink(Model):
     _required_fields = ['url']
+
+
+SUB_ACTIVITY_VERBS_MAP = {
+    ReplyActivity.sub_item_key: ReplyActivity.sub_item_verb,
+    LikeActivity.sub_item_key: LikeActivity.sub_item_verb,
+}

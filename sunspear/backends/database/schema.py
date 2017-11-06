@@ -43,6 +43,7 @@ likes_table = Table('likes', metadata,
                     Column('in_reply_to', ForeignKey('activities.id', ondelete='CASCADE'), nullable=False),
                     Column('actor', ForeignKey('objects.id', ondelete='CASCADE'), nullable=False),
                     Column('published', DateTime(timezone=True), nullable=False),
+                    Column('updated', DateTime(timezone=True)),
                     Column('content', Text),
                     Column('other_data', custom_types.JSONDict()),
                     UniqueConstraint('actor', 'in_reply_to'))

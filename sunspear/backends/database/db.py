@@ -26,9 +26,10 @@ import uuid
 import six
 from dateutil import tz
 from dateutil.parser import parse
-from sqlalchemy import create_engine, sql
+from sqlalchemy import create_engine, desc, sql
 from sqlalchemy.pool import QueuePool
-from sunspear.activitystreams.models import Activity, Model, Object
+from sunspear.activitystreams.models import (SUB_ACTIVITY_VERBS_MAP, Activity,
+                                             Model, Object)
 from sunspear.backends.base import SUB_ACTIVITY_MAP, BaseBackend
 from sunspear.exceptions import (SunspearDuplicateEntryException,
                                  SunspearOperationNotSupportedException,
@@ -288,15 +289,25 @@ class DatabaseBackend(BaseBackend):
         return activities
 
     def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="", published=None, **kwargs):
-        object_type = kwargs.get('object_type', sub_activity_verb)
-        sub_activity_model = self.get_sub_activity_model(sub_activity_verb)
         sub_activity_attribute = self.get_sub_activity_attribute(sub_activity_verb)
 
         activity_id = self._extract_id(activity)
         raw_activity = self._get_raw_activities([activity_id])[0]
-        activity_model = Activity(raw_activity, backend=self)
 
-        sub_activity_table = getattr(self, '{}_table'.format(sub_activity_attribute))
+        sub_activity, original_activity = self._create_sub_activity(
+            sub_activity_attribute, raw_activity, actor, content, extra=extra, sub_activity_verb=sub_activity_verb, published=published, **kwargs)
+
+        # get all the sub activity items for the original activity incase it hasn't been refreshed
+        original_activity = self._hydrate_sub_activity([original_activity])[0]
+
+        return sub_activity, original_activity
+
+    def _create_sub_activity(self, sub_activity_attribute, original_activity, actor, content, extra={}, sub_activity_verb="", published=None, **kwargs):
+        object_type = kwargs.get('object_type', sub_activity_verb)
+        sub_activity_model = self.get_sub_activity_model(sub_activity_verb)
+
+        activity_model = Activity(original_activity, backend=self)
+        sub_activity_table = self._get_sub_activity_table(sub_activity_attribute)
 
         sub_activity, original_activity = activity_model\
             .get_parsed_sub_activity_dict(
@@ -326,9 +337,36 @@ class DatabaseBackend(BaseBackend):
         objects = self.get_obj(object_ids)
         objects_dict = dict(((obj["id"], obj,) for obj in objects))
 
+        activities = self._hydrate_sub_activity(activities)
+
+        activities_in_objects_ids = set()
         # replace the object ids with the hydrated objects
         for activity in activities:
             activity = self._dehydrate_object_keys(activity, objects_dict)
+
+            # Extract keys of any activities that were objects
+            activities_in_objects_ids.update(self._extract_activity_keys(activity, skip_sub_activities=True))
+
+        # If we did have activities that were objects, we need to hydrate those activities and
+        # the objects for those activities
+        if activities_in_objects_ids:
+            sub_activities = self._get_raw_activities(activities_in_objects_ids)
+            activities_in_objects_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
+            for activity in activities:
+                activity = self._dehydrate_sub_activity(activity, activities_in_objects_dict, skip_sub_activities=True)
+
+                # we have to do one more round of object dehydration for our new sub-activities
+                object_ids.update(self._extract_object_keys(activity))
+
+            # now get all the objects we don't already have and for sub-activities and and hydrate them into
+            # our list of activities
+            object_ids -= set(objects_dict.keys())
+            objects = self.get_obj(object_ids)
+            for obj in objects:
+                objects_dict[obj["id"]] = obj
+
+            for activity in activities:
+                activity = self._dehydrate_object_keys(activity, objects_dict)
 
         return activities
 
@@ -341,9 +379,65 @@ class DatabaseBackend(BaseBackend):
         """
         return uuid.uuid1().hex
 
+    def _hydrate_sub_activity(self, activities):
+        activity_ids = set()
+        for activity in activities:
+            activity_ids.add(activity['id'])
+
+        for sub_activity_attribute in Activity._response_fields:
+            sub_activity_table = self._get_sub_activity_table(sub_activity_attribute)
+
+            results = self._get_select_multiple_sub_activities(sub_activity_attribute, activity_ids)
+
+            sub_activity_map = {}
+            if results:
+                for result in results:
+                    parsed_result = self._convert_sub_activity_to_activity_stream_schema(sub_activity_attribute, result)
+                    sub_activity_map.setdefault(result['in_reply_to'], []).append(parsed_result)
+
+                for activity in activities:
+                    if activity['id'] in sub_activity_map:
+                        sub_activities_for_activity = sub_activity_map[activity['id']]
+                        activity[sub_activity_attribute] = {
+                            'totalItems': len(sub_activities_for_activity),
+                            'items': sub_activities_for_activity,
+                        }
+            else:
+                for activity in activities:
+                    activity[sub_activity_attribute] = {
+                        'totalItems': 0,
+                        'items': [],
+                    }
+        return activities
+
+    def _get_select_multiple_sub_activities(self, sub_activity_attribute, activity_ids):
+        sub_activity_stm = self._get_select_multiple_sub_activities_query(sub_activity_attribute, activity_ids)
+        results = self.engine.execute(sub_activity_stm).fetchall()
+        parsed_results = []
+        for result in results:
+            sub_activity_table = self._get_sub_activity_table(sub_activity_attribute)
+            sub_activity_dict = self._convert_db_result_to_dict(sub_activity_table, result)
+            actor_dict = self._convert_db_result_to_dict(self.objects_table, result)
+
+            sub_activity_dict['actor'] = actor_dict
+
+            parsed_results.append(sub_activity_dict)
+
+        return parsed_results
+
+    def _convert_db_result_to_dict(self, db_table, db_result):
+            result_dict = {}
+            for column_name, column in db_table.c.items():
+                result_dict[column_name] = db_result[column]
+
+            return result_dict
+
     def _get_audience_targeting_table(self, targeting_type):
         audience_table_string = "{}_table".format(targeting_type)
         return getattr(self, audience_table_string)
+
+    def _get_sub_activity_table(self, sub_activity_attribute):
+        return getattr(self, '{}_table'.format(sub_activity_attribute))
 
     def _get_raw_activities(self, activity_ids, **kwargs):
         activity_ids = map(self._extract_id, activity_ids)
@@ -355,6 +449,17 @@ class DatabaseBackend(BaseBackend):
         activities = [self._db_schema_to_activity_dict(activity) for activity in activities]
 
         return activities
+
+    def _convert_sub_activity_to_activity_stream_schema(self, sub_activity_attribute, db_sub_activity):
+        return {
+            'verb': SUB_ACTIVITY_VERBS_MAP[sub_activity_attribute],
+            'object': {'id': db_sub_activity['id'], 'objectType': 'activity'},
+            'actor': self._db_schema_to_obj_dict(db_sub_activity['actor']),
+            'inReplyTo': [db_sub_activity['in_reply_to']],
+            'content': db_sub_activity['content'],
+            'published': db_sub_activity['published'],
+            'updated': db_sub_activity['updated'],
+        }
 
     def _convert_sub_activity_to_db_schema(self, sub_activity, activity):
         # Find all the fields in the sub activity that aren't part of the standard activity object
@@ -469,6 +574,13 @@ class DatabaseBackend(BaseBackend):
         obj_dict = obj.get_parsed_dict()
 
         return obj_dict
+
+    def _get_select_multiple_sub_activities_query(self, sub_activity_attribute, activity_ids):
+        sub_activity_table = self._get_sub_activity_table(sub_activity_attribute)
+        objects_table = self.objects_table
+        s = sql.select([sub_activity_table, objects_table]).select_from(sub_activity_table.join(
+            objects_table, objects_table.c.id == sub_activity_table.c.actor)).where(sub_activity_table.c.in_reply_to.in_(activity_ids)).order_by(desc(sub_activity_table.c.published))
+        return s
 
     def _get_select_multiple_objects_query(self, obj_ids):
         s = sql.select(['*']).where(self.objects_table.c.id.in_(obj_ids))

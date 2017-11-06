@@ -91,7 +91,7 @@ class TestDatabaseBackend(object):
             'object_type': u'use\u0403',
             'display_name': u'\u019duman S',
             'content': u'Foo bar!\u03ee',
-            'published': self._datetime_to_string(self.now),
+            'published': self.now,
             'image': {
                 'url': 'https://www.google.com/cool_image.png',
                 'displayName': u'Cool \u0268mage',
@@ -177,6 +177,28 @@ class TestDatabaseBackend(object):
 
         self.test_obj = self.test_objs[0]
 
+    def _create_likes_for_activity(self, activity, n=1):
+        sub_activity_attribute = 'likes'
+        sub_activity_verb = 'like'
+        created_activities = []
+        self._engine.execute(self._backend.objects_table.insert(), [self.test_db_schema_dict])
+        for i in range(n):
+            created_activities.append(self._backend._create_sub_activity(
+                sub_activity_attribute, activity, self.test_db_schema_dict['id'], '', sub_activity_verb=sub_activity_verb))
+
+        return created_activities
+
+    def _create_replies_for_activity(self, activity, n=1):
+        sub_activity_attribute = 'replies'
+        sub_activity_verb = 'reply'
+        created_activities = []
+        self._engine.execute(self._backend.objects_table.insert(), [self.test_db_schema_dict])
+        for i in range(n):
+            created_activities.append(self._backend._create_sub_activity(
+                sub_activity_attribute, activity, self.test_db_schema_dict['id'], 'Foo', sub_activity_verb=sub_activity_verb))
+
+        return created_activities
+
     def _setup_activities(self):
         self.test_activities = [{
             'id': 'WvgYP43bfg64fsdDHt3',
@@ -200,6 +222,8 @@ class TestDatabaseBackend(object):
             'foo': 'bar',
             'baz': u'go\u0298',
             'zoo': {'zee': 12, 'tim': {'zde': u'\u0268\u0298'}},
+            'replies': {u'totalItems': 0, u'items': []},
+            'likes': {u'totalItems': 0, u'items': []},
         }]
 
         self.test_objs_for_activities = [{
@@ -401,6 +425,50 @@ class TestDatabaseBackend(object):
         ok_(self._backend.activity_exists(self.test_activity))
         ok_(not self._backend.activity_exists('someunknownid'))
 
+    def test_hydrate_activity_with_likes(self):
+        db_activity = self._backend._activity_dict_to_db_schema(self.test_activity)
+        db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
+
+        activities_table = self._backend.activities_table
+        objects_table = self._backend.objects_table
+
+        self._engine.execute(objects_table.insert(), db_objs)
+
+        self._engine.execute(activities_table.insert(), [
+            db_activity
+        ])
+
+        created_sub_activities = self._create_likes_for_activity(self.hydrated_test_activity)
+
+        activity_with_like = self._backend._hydrate_sub_activity([self.test_activity])[0]
+
+        eq_(activity_with_like['likes']['totalItems'], 1)
+        eq_(activity_with_like['likes']['items'][0]['object']['id'], created_sub_activities[0][0]['id'])
+        eq_(activity_with_like['likes']['items'][0]['verb'], 'like')
+        eq_(activity_with_like['likes']['items'][0]['actor']['id'], self.test_db_schema_dict['id'])
+
+    def test_hydrate_activity_with_replies(self):
+        db_activity = self._backend._activity_dict_to_db_schema(self.test_activity)
+        db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
+
+        activities_table = self._backend.activities_table
+        objects_table = self._backend.objects_table
+
+        self._engine.execute(objects_table.insert(), db_objs)
+
+        self._engine.execute(activities_table.insert(), [
+            db_activity
+        ])
+
+        created_sub_activities = self._create_replies_for_activity(self.hydrated_test_activity)
+
+        activity_with_like = self._backend._hydrate_sub_activity([self.test_activity])[0]
+
+        eq_(activity_with_like['replies']['totalItems'], 1)
+        eq_(activity_with_like['replies']['items'][0]['object']['id'], created_sub_activities[0][0]['id'])
+        eq_(activity_with_like['replies']['items'][0]['verb'], 'reply')
+        eq_(activity_with_like['replies']['items'][0]['actor']['id'], self.test_db_schema_dict['id'])
+
     def test_activity_create(self):
         db_objs = map(self._backend._obj_dict_to_db_schema, self.test_objs_for_activities)
 
@@ -505,17 +573,26 @@ class TestDatabaseBackend(object):
 
         actor = {"objectType": "something", "id": actor_id, "published": published_time}
 
+        actor_db_schema = self._backend._obj_dict_to_db_schema(actor)
+
+        objects_table = self._backend.objects_table
+        self._engine.execute(objects_table.insert(), [actor_db_schema])
+
         # create the activity
         self._backend.create_activity(self.hydrated_test_activity)
 
         # now create a reply for the activity
-        like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
+        like_activity_dict, original_activity = self._backend.sub_activity_create(
             self.hydrated_test_activity, actor, "This is a like.",
             sub_activity_verb='like')
 
         sub_activity_exists = self._engine.execute(sql.select([sql.exists().where(self._backend.likes_table.c.id == like_activity_dict['id'])])).scalar()
         ok_(sub_activity_exists)
-
+        ok_('likes' in original_activity)
+        eq_(original_activity['likes']['totalItems'], 1)
+        eq_(original_activity['likes']['items'][0]['object']['id'], like_activity_dict['id'])
+        eq_(original_activity['likes']['items'][0]['verb'], 'like')
+        eq_(original_activity['likes']['items'][0]['actor']['id'], actor_id)
 
     def _datetime_to_db_compatibal_str(self, datetime_instance):
         return datetime_instance.strftime('%Y-%m-%d %H:%M:%S')
