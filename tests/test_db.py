@@ -484,6 +484,25 @@ class TestDatabaseBackend(object):
         ok_(self._backend.activity_exists(self.hydrated_test_activity))
 
     def test_create_activity_with_audience_targeting(self):
+        db_obj = self._backend._obj_dict_to_db_schema(self.test_objs[3])
+        objects_table = self._backend.objects_table
+        self._engine.execute(objects_table.insert(), db_obj)
+
+        self.hydrated_test_activity['to'] = [self.test_objs[0]]
+        self.hydrated_test_activity['bto'] = [self.test_objs[1]]
+        self.hydrated_test_activity['cc'] = [self.test_objs[0], self.test_objs[1]]
+        self.hydrated_test_activity['bcc'] = [self.test_objs[2], self.test_objs[3]['id']]
+
+        self._backend.create_activity(self.hydrated_test_activity)
+
+        ok_(self._backend.activity_exists(self.hydrated_test_activity))
+
+        ok_(self._backend.obj_exists(self.test_objs[0]))
+        ok_(self._backend.obj_exists(self.test_objs[1]))
+        ok_(self._backend.obj_exists(self.test_objs[2]))
+        ok_(self._backend.obj_exists(self.test_objs[3]))
+
+    def test_create_activity_with_audience_targeting(self):
         # We are going to insert one object by id just to make sure it works when we just insert by id
         db_obj = self._backend._obj_dict_to_db_schema(self.test_objs[3])
         objects_table = self._backend.objects_table

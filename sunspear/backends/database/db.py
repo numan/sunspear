@@ -218,6 +218,8 @@ class DatabaseBackend(BaseBackend):
 
         audience_targeting_fields = Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields
 
+        audience_targeting_fields = Activity._direct_audience_targeting_fields + Activity._indirect_audience_targeting_fields
+
         for key, value in activity_copy.items():
             if key in Activity._object_fields:
                 activity_obj, activity_obj_id = self._extract_activity_obj_key(value)
