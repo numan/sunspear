@@ -570,7 +570,7 @@ class RiakBackend(BaseBackend):
                     for i, item in enumerate(sub_activity[collection]['items']):
                         try:
                             dehydrated_sub_items.append(self._dehydrate_sub_activity(item, obj_list))
-                        except KeyError, e:
+                        except KeyError as e:
                             pass
                         sub_activity[collection]['items'] = dehydrated_sub_items
                         sub_activity[collection]['totalItems'] = len(dehydrated_sub_items)
