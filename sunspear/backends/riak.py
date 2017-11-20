@@ -699,7 +699,7 @@ class RiakBackend(BaseBackend):
         returns a unix timestamp representing the ``datetime`` object
         """
         dt_obj = datetime.datetime.utcnow()
-        return long((calendar.timegm(dt_obj.utctimetuple()) * 1000)) + (dt_obj.microsecond / 1000)
+        return int((calendar.timegm(dt_obj.utctimetuple()) * 1000)) + (dt_obj.microsecond / 1000)
 
     def get_new_id(self):
         """
@@ -709,5 +709,3 @@ class RiakBackend(BaseBackend):
         :return: a new id
         """
         return uuid.uuid1().hex
-        # now = datetime.datetime.utcnow()
-        # return str(long(calendar.timegm(now.utctimetuple()) - calendar.timegm(self.custom_epoch.utctimetuple())) + now.microsecond)
