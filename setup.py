@@ -20,9 +20,8 @@ setup(
     packages=find_packages(exclude=['tests']),
     test_suite='nose.collector',
     install_requires=[
-        'riak==2.5.4',
+        'riak',
         'python-dateutil>=1.5, != 2.0',
-        'protobuf==2.6.1',
     ],
     options={'easy_install': {'allow_hosts': 'pypi.python.org'}},
     tests_require=tests_require,
