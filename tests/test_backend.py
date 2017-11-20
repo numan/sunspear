@@ -1,13 +1,14 @@
 from __future__ import absolute_import
 
-from nose.tools import ok_, eq_, set_trace, raises
-from mock import MagicMock, call, ANY
+import datetime
 
-from sunspear.exceptions import SunspearValidationException
+import six
+from mock import ANY, MagicMock, call
+from nose.tools import eq_, ok_, raises, set_trace
+
 from sunspear.aggregators.property import PropertyAggregator
 from sunspear.backends.riak import RiakBackend
-
-import datetime
+from sunspear.exceptions import SunspearValidationException
 
 riak_connection_options = {
     "nodes": [
@@ -172,7 +173,7 @@ class TestRiakBackend(object):
 
         riak_obj = self._backend._activities.get('5')
         riak_obj_data = riak_obj.data
-        ok_(isinstance(riak_obj_data.get("target"), basestring))
+        ok_(isinstance(riak_obj_data.get("target"), six.string_types))
 
     def test_delete_activity(self):
         self._backend._activities.get('5').delete()
@@ -730,8 +731,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
         #now create a reply for the activity
         reply_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
@@ -739,8 +740,8 @@ class TestRiakBackend(object):
             sub_activity_verb='reply')
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
     def test_create_reply_with_extra_data(self):
         self._backend._activities.get('5').delete()
@@ -843,8 +844,8 @@ class TestRiakBackend(object):
         self._backend.create_activity({"id": 5, "title": "Stream Item", "verb": "post", "actor": actor, "object": obj})
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
         #now create a reply for the activity
         like_activity_dict, activity_obj_dict = self._backend.sub_activity_create(
@@ -852,8 +853,8 @@ class TestRiakBackend(object):
             sub_activity_verb='like')
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
     def test_create_like(self):
         self._backend._activities.get('5').delete()
@@ -950,15 +951,15 @@ class TestRiakBackend(object):
             5, actor2_id, "", sub_activity_verb='like')
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
         #now delete the like and make sure everything is ok:
         self._backend.sub_activity_delete(like_activity_dict['id'], 'like')
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
     def test_reply_delete_maintains_dehydrated_state(self):
         self._backend._activities.get('5').delete()
@@ -983,16 +984,16 @@ class TestRiakBackend(object):
             5, actor2_id, "This is a reply.", sub_activity_verb='reply')
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
         #now delete the reply and make sure everything is ok:
         self._backend.sub_activity_delete(
             reply_activity_dict['id'], 'reply')
 
         riak_obj_data = self._backend._activities.get(key="5").data
-        ok_(isinstance(riak_obj_data.get("actor"), basestring))
-        ok_(isinstance(riak_obj_data.get("object"), basestring))
+        ok_(isinstance(riak_obj_data.get("actor"), six.string_types))
+        ok_(isinstance(riak_obj_data.get("object"), six.string_types))
 
     def test_reply_delete(self):
         self._backend._activities.get('5').delete()
@@ -1719,4 +1720,3 @@ class TestIndexes(object):
         eq_(filter(lambda x: x[0] == 'actor_bin', riak_obj.indexes)[0][1], actor2_id)
         eq_(filter(lambda x: x[0] == 'object_bin', riak_obj.indexes)[0][1], like_activity_dict['object']['id'])
         eq_(filter(lambda x: x[0] == 'inreplyto_bin', riak_obj.indexes)[0][1], '5')
-

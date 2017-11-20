@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 
-from nose.tools import ok_, eq_, raises, set_trace
-from mock import MagicMock, call, ANY
-
-from sunspear.activitystreams.models import Activity, MediaLink, Object, Model, ReplyActivity, LikeActivity
-from sunspear.exceptions import SunspearValidationException
-
 import datetime
+
+import six
+from mock import MagicMock
+from nose.tools import eq_, ok_, raises
+
+from sunspear.activitystreams.models import Activity, MediaLink, Model, Object
+from sunspear.exceptions import SunspearValidationException
 
 
 class TestActivityModel(object):
@@ -214,7 +215,7 @@ class TestModelMethods(object):
         obj = Model({}, backend=MagicMock())
         obj_dict = obj._set_defaults({'id': 12})
 
-        ok_(isinstance(obj_dict.get('id'), basestring))
+        ok_(isinstance(obj_dict.get('id'), six.string_types))
 
     def test__set_defaults_no_id_does_not_fail(self):
         obj = Model({}, backend=MagicMock())
@@ -229,7 +230,7 @@ class TestModelMethods(object):
         eq_(obj._parse_date(d), d.strftime('%Y-%m-%dT%H:%M:%S') + "Z")
 
         #badly formatted string date
-        ok_(isinstance(obj._parse_date(date="qwerty"), basestring))
+        ok_(isinstance(obj._parse_date(date="qwerty"), six.string_types))
 
         #no date passed
-        ok_(isinstance(obj._parse_date(date=None), basestring))
+        ok_(isinstance(obj._parse_date(date=None), six.string_types))

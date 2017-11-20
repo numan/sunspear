@@ -17,16 +17,17 @@ under the License.
 """
 from __future__ import absolute_import
 
-from sunspear.activitystreams.models import Object, Activity, Model
-from sunspear.exceptions import (SunspearValidationException)
-from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
-
-from riak import RiakClient
-
-import uuid
+import calendar
 import copy
 import datetime
-import calendar
+import uuid
+
+import six
+from riak import RiakClient
+
+from sunspear.activitystreams.models import Activity, Model, Object
+from sunspear.backends.base import SUB_ACTIVITY_MAP, BaseBackend
+from sunspear.exceptions import SunspearValidationException
 
 __all__ = ('RiakBackend', )
 
@@ -586,9 +587,9 @@ class RiakBackend(BaseBackend):
                         for in_reply_to_obj in objects['inReplyTo']]
             if isinstance(objects, list):
                 for item in objects:
-                    if isinstance(item, basestring):
+                    if isinstance(item, six.string_types):
                         keys.append(item)
-            if isinstance(objects, basestring):
+            if isinstance(objects, six.string_types):
                 keys.append(objects)
 
         if not skip_sub_activities:
@@ -614,9 +615,9 @@ class RiakBackend(BaseBackend):
                                 objects_dict, skip_sub_activities=skip_sub_activities)
             if isinstance(activity_objects, list):
                 for i, obj_id in enumerate(activity_objects):
-                    if isinstance(activity[object_key][i], basestring):
+                    if isinstance(activity[object_key][i], six.string_types):
                         activity[object_key][i] = objects_dict.get(obj_id, {})
-            if isinstance(activity_objects, basestring):
+            if isinstance(activity_objects, six.string_types):
                 activity[object_key] = objects_dict.get(activity_objects, {})
 
         if not skip_sub_activities:
@@ -678,7 +679,7 @@ class RiakBackend(BaseBackend):
         Helper that returns an id if the activity has one.
         """
         this_id = None
-        if isinstance(activity_or_id, basestring):
+        if isinstance(activity_or_id, six.string_types):
             this_id = activity_or_id
         elif isinstance(activity_or_id, dict):
             this_id = activity_or_id.get('id', None)

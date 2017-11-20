@@ -1,10 +1,10 @@
-from sunspear.exceptions import SunspearValidationException
+import datetime
 
-from sunspear.lib.rfc3339 import rfc3339
-
+import six
 from dateutil.parser import parse
 
-import datetime
+from sunspear.exceptions import SunspearValidationException
+from sunspear.lib.rfc3339 import rfc3339
 
 __all__ = ('Model', 'Activity', 'ReplyActivity', 'LikeActivity',
     'Object', 'MediaLink', )
@@ -113,7 +113,7 @@ class Model(object):
     def _parse_date(self, date=None, utc=True, use_system_timezone=False):
         dt = None
         if date is None or not isinstance(date, datetime.datetime):
-            if isinstance(date, basestring):
+            if isinstance(date, six.string_types):
                 try:
                     dt = parse(date)
                 except ValueError:
