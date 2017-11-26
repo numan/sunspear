@@ -20,6 +20,7 @@ Report bugs & problems on BitBucket_
 
 .. _BitBucket: https://bitbucket.org/henry/clan.cx/issues
 '''
+from __future__ import absolute_import, division, print_function
 
 __author__ = 'Henry Precheur <henry@precheur.org>'
 __license__ = 'ISCL'

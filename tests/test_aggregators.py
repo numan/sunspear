@@ -1,10 +1,10 @@
-from __future__ import absolute_import
-
-from nose.tools import ok_, eq_, raises, set_trace
-
-from sunspear.aggregators.property import PropertyAggregator
+from __future__ import absolute_import, division, print_function
 
 from itertools import groupby
+
+from nose.tools import eq_, ok_, raises, set_trace
+
+from sunspear.aggregators.property import PropertyAggregator
 
 
 class TestPropertyAggregator(object):

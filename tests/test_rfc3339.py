@@ -1,11 +1,11 @@
-from __future__ import absolute_import
-
-from sunspear.lib.rfc3339 import rfc3339, _timezone, _utc_offset, _timedelta_to_seconds
-
-from nose.tools import eq_, ok_
+from __future__ import absolute_import, division, print_function
 
 import datetime
 import time
+
+from nose.tools import eq_, ok_
+
+from sunspear.lib.rfc3339 import _timedelta_to_seconds, _timezone, _utc_offset, rfc3339
 
 
 class TestRFC3339(object):

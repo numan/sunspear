@@ -1,9 +1,9 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function
 
 import datetime
 
 import six
-from mock import ANY, MagicMock, call
+from mock import ANY, call, MagicMock
 from nose.tools import eq_, ok_, raises, set_trace
 
 from sunspear.aggregators.property import PropertyAggregator

@@ -1,3 +1,6 @@
+from __future__ import absolute_import, division, print_function
+
+
 class SunspearClient(object):
     """
     The class is used to create, delete, remove and update activity stream items.

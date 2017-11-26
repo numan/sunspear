@@ -1,9 +1,11 @@
-from sunspear.activitystreams.models import Activity, ReplyActivity, LikeActivity
-from sunspear.exceptions import (SunspearDuplicateEntryException, SunspearInvalidActivityException,
-    SunspearInvalidObjectException)
+from __future__ import absolute_import, division, print_function
 
-import uuid
 import copy
+import uuid
+
+from sunspear.activitystreams.models import Activity, LikeActivity, ReplyActivity
+from sunspear.exceptions import (
+    SunspearDuplicateEntryException, SunspearInvalidActivityException, SunspearInvalidObjectException)
 
 __all__ = ('BaseBackend', 'SUB_ACTIVITY_MAP')
 

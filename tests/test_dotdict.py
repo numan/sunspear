@@ -1,8 +1,8 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function
+
+from nose.tools import eq_, ok_, raises
 
 from sunspear.lib.dotdict import dotdictify
-
-from nose.tools import ok_, eq_, raises
 
 
 class TestDotDictify(object):

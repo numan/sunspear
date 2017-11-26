@@ -1,10 +1,11 @@
-from sunspear.aggregators.base import BaseAggregator
-from sunspear.lib.dotdict import dotdictify
-
-from itertools import groupby
+from __future__ import absolute_import, division, print_function
 
 import copy
 import re
+from itertools import groupby
+
+from sunspear.aggregators.base import BaseAggregator
+from sunspear.lib.dotdict import dotdictify
 
 
 class PropertyAggregator(BaseAggregator):

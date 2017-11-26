@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
-from setuptools import setup, find_packages
+from __future__ import absolute_import, division, print_function
+
+from setuptools import find_packages, setup
 
 tests_require=[
     'nose',

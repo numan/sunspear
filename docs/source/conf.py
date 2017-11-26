@@ -11,7 +11,10 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sys, os
+from __future__ import absolute_import, division, print_function
+
+import os
+import sys
 
 FILE_ROOT = os.path.abspath(os.path.dirname(__file__))
 #add the apps dir to the python path.

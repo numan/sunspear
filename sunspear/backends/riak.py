@@ -15,7 +15,7 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import calendar
 import copy
@@ -26,7 +26,7 @@ import six
 from riak import RiakClient
 
 from sunspear.activitystreams.models import Activity, Model, Object
-from sunspear.backends.base import SUB_ACTIVITY_MAP, BaseBackend
+from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
 from sunspear.exceptions import SunspearValidationException
 
 __all__ = ('RiakBackend', )
