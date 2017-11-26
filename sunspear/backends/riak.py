@@ -232,7 +232,7 @@ class RiakBackend(BaseBackend):
         :type riak_object: RiakObject
         :param riak_object: a RiakObject representing the model of  the class
         """
-        if not filter(lambda x: x[0] == "timestamp_int", riak_object.indexes):
+        if not [x for x in riak_object.indexes if x[0] == "timestamp_int"]:
             riak_object.add_index("timestamp_int", self._get_timestamp())
 
         riak_object.remove_index('modified_int')
@@ -355,7 +355,7 @@ class RiakBackend(BaseBackend):
         :return: list -- a list of activities matching ``activity_ids``. If the activities is not found, it is not included in the result set.
             Activities are returned in the order of ids provided.
         """
-        activity_ids = map(self._extract_id, activity_ids)
+        activity_ids = list(map(self._extract_id, activity_ids))
         if not activity_ids:
             return []
 
@@ -428,9 +428,7 @@ class RiakBackend(BaseBackend):
         activity = self._activities.get(key=in_reply_to_key)
         activity_data = activity.data
         activity_data[sub_activity_model.sub_item_key]['totalItems'] -= 1
-        activity_data[sub_activity_model.sub_item_key]['items'] = filter(
-            lambda x: x["id"] != sub_activity_id,
-            activity_data[sub_activity_model.sub_item_key]['items'])
+        activity_data[sub_activity_model.sub_item_key]['items'] = [x for x in activity_data[sub_activity_model.sub_item_key]['items'] if x["id"] != sub_activity_id]
 
         updated_activity = self.update_activity(activity_data, **kwargs)
         self.delete_activity(sub_activity_id)
@@ -669,7 +667,7 @@ class RiakBackend(BaseBackend):
 
         #riak does not return the results in any particular order (unless we sort). So,
         #we have to put the objects returned by riak back in order
-        results_map = dict(map(lambda result: (result['id'], result,), results))
+        results_map = dict([(result['id'], result,) for result in results])
         reordered_results = [results_map[id] for id in activity_ids if id in results_map]
 
         return reordered_results

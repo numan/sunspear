@@ -91,7 +91,7 @@ class Model(object):
                 _parsed_data[c] = _parsed_data[c].parse_data(_parsed_data[c].get_dict())
 
         #parse anything that is a dictionary for things like datetime fields that are datetime objects
-        for k, v in _parsed_data.items():
+        for k, v in list(_parsed_data.items()):
             if isinstance(v, dict) and k not in self._response_fields:
                 _parsed_data[k] = self.parse_data(v)
 

@@ -77,7 +77,7 @@ class BaseBackend(object):
 
         objs_created = []
         objs_modified = []
-        for key, value in activity_copy.items():
+        for key, value in list(activity_copy.items()):
             if key in Activity._object_fields and isinstance(value, dict):
                 if self.obj_exists(value):
                     previous_value = self.get_obj([self._extract_id(value)])[0]

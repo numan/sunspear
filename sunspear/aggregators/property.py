@@ -49,12 +49,12 @@ class PropertyAggregator(BaseAggregator):
                     nested_root, rest = attr.split('.', 1)
                     #store a list of nested roots. We'll have to be careful not to listify these
                     nested_root_attributes.append(nested_root)
-                    for nested_dict_key, nested_dict_value in activity.get(nested_dict).items():
+                    for nested_dict_key, nested_dict_value in list(activity.get(nested_dict).items()):
                         if nested_dict_key != deepest_attr:
                             listified_dict['.'.join([nested_dict, nested_dict_key])] = [nested_dict_value]
 
         #now we listify all other non nested attributes
-        for key, val in activity.items():
+        for key, val in list(activity.items()):
             if key not in group_by_attributes and key not in nested_root_attributes:
                 listified_dict[key] = [val]
 
@@ -97,7 +97,7 @@ class PropertyAggregator(BaseAggregator):
                 #aggregate the rest of the activities into lists
                 for activity in group_list[1:]:
                     activity = dotdictify(activity)
-                    for key in aggregated_activity.keys():
+                    for key in list(aggregated_activity.keys()):
                         if key not in group_by_attributes and key not in nested_root_attributes:
                             aggregated_activity[key].append(activity.get(key))
 
@@ -108,7 +108,7 @@ class PropertyAggregator(BaseAggregator):
                             if nested_val is not None:
                                 nested_dict, deepest_attr = attr.rsplit('.', 1)
 
-                                for nested_dict_key, nested_dict_value in activity.get(nested_dict).items():
+                                for nested_dict_key, nested_dict_value in list(activity.get(nested_dict).items()):
                                     if nested_dict_key != deepest_attr:
                                         aggregated_activity['.'.join([nested_dict, nested_dict_key])].append(nested_dict_value)
 

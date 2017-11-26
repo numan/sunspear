@@ -49,8 +49,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Sunspear'
-copyright = u'2013, Numan Sachwani'
+project = 'Sunspear'
+copyright = '2013, Numan Sachwani'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -192,8 +192,8 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'Sunspear.tex', u'Sunspear Documentation',
-   u'Numan Sachwani', 'manual'),
+  ('index', 'Sunspear.tex', 'Sunspear Documentation',
+   'Numan Sachwani', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -222,8 +222,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'sunspear', u'Sunspear Documentation',
-     [u'Numan Sachwani'], 1)
+    ('index', 'sunspear', 'Sunspear Documentation',
+     ['Numan Sachwani'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -236,8 +236,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'Sunspear', u'Sunspear Documentation',
-   u'Numan Sachwani', 'Sunspear', 'One line description of project.',
+  ('index', 'Sunspear', 'Sunspear Documentation',
+   'Numan Sachwani', 'Sunspear', 'One line description of project.',
    'Miscellaneous'),
 ]
 

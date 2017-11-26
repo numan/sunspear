@@ -91,13 +91,13 @@ class TestRFC3339(object):
                           self.local_timezone))
 
     def test_before_1970(self):
-        d = datetime.date(1885, 01, 04)
+        d = datetime.date(1885, 0o1, 0o4)
         ok_(rfc3339(d).startswith('1885-01-04T00:00:00'))
         eq_(rfc3339(d, utc=True, use_system_timezone=False),
                          '1885-01-04T00:00:00Z')
 
     def test_1920(self):
-        d = datetime.date(1920, 02, 29)
+        d = datetime.date(1920, 0o2, 29)
         x = rfc3339(d, utc=False, use_system_timezone=True)
         ok_(x.startswith('1920-02-29T00:00:00'))
 
