@@ -697,7 +697,7 @@ class RiakBackend(BaseBackend):
         returns a unix timestamp representing the ``datetime`` object
         """
         dt_obj = datetime.datetime.utcnow()
-        return int((calendar.timegm(dt_obj.utctimetuple()) * 1000)) + (dt_obj.microsecond / 1000)
+        return int((calendar.timegm(dt_obj.utctimetuple()) * 1000)) + (dt_obj.microsecond // 1000)
 
     def get_new_id(self):
         """
