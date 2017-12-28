@@ -28,7 +28,6 @@ __all__ = ('rfc3339', '_timezone', '_utc_offset', '_timedelta_to_seconds')
 
 import datetime
 import time
-import unittest
 
 
 def _timezone(utc_offset):

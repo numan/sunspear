@@ -149,38 +149,32 @@ class RiakBackend(BaseBackend):
 
     def __init__(
         self, protocol="pbc", nodes=[], objects_bucket_name="objects",
-            activities_bucket_name="activities", **kwargs):
+            activities_bucket_name="activities", r=None, w=None, dw=None,
+            pr=None, pw=None, **kwargs):
 
-        self._riak_backend = RiakClient(protocol=protocol, nodes=nodes)
-
-        r_value = kwargs.get("r")
-        w_value = kwargs.get("w")
-        dw_value = kwargs.get("dw")
-        pr_value = kwargs.get("pr")
-        pw_value = kwargs.get("pw")
-
+        self._riak_backend = RiakClient(protocol=protocol, nodes=nodes, **kwargs)
         self._objects = self._riak_backend.bucket(objects_bucket_name)
         self._activities = self._riak_backend.bucket(activities_bucket_name)
 
-        if r_value:
-            self._objects.r = r_value
-            self._activities.r = r_value
+        if r:
+            self._objects.r = r
+            self._activities.r = r
 
-        if w_value:
-            self._objects.w = w_value
-            self._activities.w = w_value
+        if w:
+            self._objects.w = w
+            self._activities.w = w
 
-        if dw_value:
-            self._objects.dw = dw_value
-            self._activities.dw = dw_value
+        if dw:
+            self._objects.dw = dw
+            self._activities.dw = dw
 
-        if pr_value:
-            self._objects.pr = pr_value
-            self._activities.pr = pr_value
+        if pr:
+            self._objects.pr = pr
+            self._activities.pr = pr
 
-        if pw_value:
-            self._objects.pw = pw_value
-            self._activities.pw = pw_value
+        if pw:
+            self._objects.pw = pw
+            self._activities.pw = pw
 
     def clear_all(self, **kwargs):
         """
