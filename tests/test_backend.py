@@ -4,17 +4,17 @@ import datetime
 
 import six
 from mock import ANY, call, MagicMock
-from nose.tools import eq_, ok_, raises, set_trace
+from nose.tools import eq_, ok_, raises
 
 from sunspear.aggregators.property import PropertyAggregator
 from sunspear.backends.riak import RiakBackend
+from sunspear.compat import must_be_str
 from sunspear.exceptions import SunspearValidationException
 
 riak_connection_options = {
     "nodes": [
         {'http_port': 8098, 'host': '127.0.0.1'}],
     'protocol': 'http',
-    # "nodes": [{'host': '127.0.0.1', 'pb_port': 10017}, {'host': '127.0.0.1', 'pb_port': 10027}, {'host': '127.0.0.1', 'pb_port': 10037}],
 }
 
 
@@ -1592,10 +1592,10 @@ class TestIndexes(object):
         self._backend.set_activity_indexes(riak_obj_mock)
 
         calls = [
-            call.add_index('verb_bin', 'post'),
-            call.add_index('actor_bin', '1234'),
-            call.add_index('object_bin', '5678'),
-            call.add_index('target_bin', '4333'),
+            call.add_index(must_be_str('verb_bin'), 'post'),
+            call.add_index(must_be_str('actor_bin'), '1234'),
+            call.add_index(must_be_str('object_bin'), '5678'),
+            call.add_index(must_be_str('target_bin'), '4333'),
         ]
 
         riak_obj_mock.assert_has_calls(calls, any_order=True)
@@ -1608,7 +1608,7 @@ class TestIndexes(object):
         self._backend.set_sub_item_indexes(riak_obj_mock, activity_id=1234)
 
         calls = [
-            call.add_index('inreplyto_bin', ANY),
+            call.add_index(must_be_str('inreplyto_bin'), ANY),
         ]
 
         riak_obj_mock.assert_has_calls(calls, any_order=True)
@@ -1628,8 +1628,8 @@ class TestIndexes(object):
         self._backend.set_general_indexes(riak_obj_mock)
 
         calls = [
-            call.add_index('timestamp_int', ANY),
-            call.add_index('modified_int', ANY),
+            call.add_index(must_be_str('timestamp_int'), ANY),
+            call.add_index(must_be_str('modified_int'), ANY),
         ]
 
         riak_obj_mock.assert_has_calls(calls, any_order=True)
@@ -1637,12 +1637,12 @@ class TestIndexes(object):
 
     def test_set_general_indexes_already_created(self):
         riak_obj_mock = MagicMock()
-        riak_obj_mock.indexes = [('timestamp_int', 12343214,)]
+        riak_obj_mock.indexes = [(must_be_str('timestamp_int'), 12343214,)]
 
         self._backend.set_general_indexes(riak_obj_mock)
 
         calls = [
-            call.add_index('modified_int', ANY),
+            call.add_index(must_be_str('modified_int'), ANY),
         ]
 
         riak_obj_mock.assert_has_calls(calls, any_order=True)

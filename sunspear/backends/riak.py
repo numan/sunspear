@@ -27,6 +27,7 @@ from riak import RiakClient
 
 from sunspear.activitystreams.models import Activity, Model, Object
 from sunspear.backends.base import BaseBackend, SUB_ACTIVITY_MAP
+from sunspear.compat import must_be_str
 from sunspear.exceptions import SunspearValidationException
 
 __all__ = ('RiakBackend', )
@@ -154,8 +155,8 @@ class RiakBackend(BaseBackend):
             pr=None, pw=None, **kwargs):
 
         self._riak_backend = RiakClient(protocol=protocol, nodes=nodes, **kwargs)
-        self._objects = self._riak_backend.bucket(objects_bucket_name)
-        self._activities = self._riak_backend.bucket(activities_bucket_name)
+        self._objects = self._riak_backend.bucket(must_be_str(objects_bucket_name))
+        self._activities = self._riak_backend.bucket(must_be_str(activities_bucket_name))
 
         if r:
             self._objects.r = r
@@ -232,11 +233,11 @@ class RiakBackend(BaseBackend):
         :type riak_object: RiakObject
         :param riak_object: a RiakObject representing the model of  the class
         """
-        if not [x for x in riak_object.indexes if x[0] == "timestamp_int"]:
-            riak_object.add_index("timestamp_int", self._get_timestamp())
+        if not any(must_be_str(name) == must_be_str('timestamp_int') for name, value in riak_object.indexes):
+            riak_object.add_index(must_be_str("timestamp_int"), self._get_timestamp())
 
-        riak_object.remove_index('modified_int')
-        riak_object.add_index("modified_int", self._get_timestamp())
+        riak_object.remove_index(must_be_str('modified_int'))
+        riak_object.add_index(must_be_str("modified_int"), self._get_timestamp())
         return riak_object
 
     def obj_update(self, obj, **kwargs):
@@ -301,15 +302,15 @@ class RiakBackend(BaseBackend):
         """
         _dict = riak_object.data
 
-        riak_object.remove_index('verb_bin')
-        riak_object.remove_index('actor_bin')
-        riak_object.remove_index('object_bin')
-        riak_object.add_index("verb_bin", self._extract_id(_dict['verb']))
-        riak_object.add_index("actor_bin", self._extract_id(_dict['actor']))
-        riak_object.add_index("object_bin", self._extract_id(_dict['object']))
+        riak_object.remove_index(must_be_str('verb_bin'))
+        riak_object.remove_index(must_be_str('actor_bin'))
+        riak_object.remove_index(must_be_str('object_bin'))
+        riak_object.add_index(must_be_str("verb_bin"), self._extract_id(_dict['verb']))
+        riak_object.add_index(must_be_str("actor_bin"), self._extract_id(_dict['actor']))
+        riak_object.add_index(must_be_str("object_bin"), self._extract_id(_dict['object']))
         if 'target' in _dict and _dict.get("target"):
-            riak_object.remove_index('target_bin')
-            riak_object.add_index("target_bin", self._extract_id(_dict['target']))
+            riak_object.remove_index(must_be_str('target_bin'))
+            riak_object.add_index(must_be_str("target_bin"), self._extract_id(_dict['target']))
 
         return riak_object
 
@@ -446,8 +447,8 @@ class RiakBackend(BaseBackend):
         original_activity_id = kwargs.get('activity_id')
         if not original_activity_id:
             raise SunspearValidationException()
-        riak_object.remove_index('inreplyto_bin')
-        riak_object.add_index("inreplyto_bin", str(original_activity_id))
+        riak_object.remove_index(must_be_str('inreplyto_bin'))
+        riak_object.add_index(must_be_str("inreplyto_bin"), str(original_activity_id))
 
         return riak_object
 
