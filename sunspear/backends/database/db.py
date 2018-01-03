@@ -26,7 +26,7 @@ import uuid
 import six
 from dateutil import tz
 from dateutil.parser import parse
-from sqlalchemy import create_engine, desc, sql
+from sqlalchemy import and_, create_engine, desc, not_, or_, sql
 from sqlalchemy.engine.result import RowProxy
 from sqlalchemy.pool import QueuePool
 from sunspear.activitystreams.models import (SUB_ACTIVITY_VERBS_MAP, Activity,
@@ -194,7 +194,7 @@ class DatabaseBackend(BaseBackend):
 
         self.engine.execute(self.activities_table.insert(), [activity_db_schema_dict])
 
-        return self.get_activity(activity_dict)
+        return self.get_activity(activity_dict, include_public=True)
 
     def _extract_activity_obj_key(self, obj_or_value):
         activity_obj = None
@@ -284,9 +284,10 @@ class DatabaseBackend(BaseBackend):
 
         return return_val
 
-    def activity_get(self, activity_ids, aggregation_pipeline=[], audience_targeting={}, **kwargs):
+    def activity_get(self, activity_ids, aggregation_pipeline=[], audience_targeting={}, include_public=False, **kwargs):
         activity_ids = self._listify(activity_ids)
         activities_query = self.get_raw_activities_query(activity_ids, **kwargs)
+        activities_query = self.filter_by_audience_targeting(activities_query, audience_targeting, include_public=include_public)
         activities = self.get_raw_activities(activities_query)
         activities = self.hydrate_activities(activities)
 
@@ -297,10 +298,27 @@ class DatabaseBackend(BaseBackend):
 
         return activities
 
-    def filter_by_audience_targetting(self, audience_targeting):
+    def filter_by_audience_targeting(self, query, audience_targeting, include_public=False):
         audience_targeting_fields = ['to', 'bto', 'cc', 'bcc']
+        conditions = []
+        public_filter = self.to_table.c.id.is_(None) & self.bto_table.c.id.is_(None) & self.cc_table.c.id.is_(None) & self.bcc_table.c.id.is_(None)
+
+        # Build filter for audience targeting
         for audience_targeting_field in audience_targeting_fields:
-            pass
+            if audience_targeting_field in audience_targeting and audience_targeting[audience_targeting_field]:
+                audience_targeting_table = self._get_audience_targeting_table(audience_targeting_field)
+                conditions.append(audience_targeting_table.c.object.in_(audience_targeting[audience_targeting_field]))
+        # Apply filter to the query
+        if conditions:
+            audience_targeting_filter = and_(*conditions)
+            if include_public:
+                query = query.where(or_(public_filter, audience_targeting_filter))
+            else:
+                query = query.where(audience_targeting_filter)
+        else:
+            query = query.where(public_filter)
+
+        return query
 
     def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="", published=None, **kwargs):
         sub_activity_attribute = self.get_sub_activity_attribute(sub_activity_verb)
@@ -342,6 +360,9 @@ class DatabaseBackend(BaseBackend):
         TODO: This can probably be refactored out of the riak backend once everything like
         sub activities and shared with fields are implemented
         """
+        if not activities:
+            return []
+
         # collect a list of unique object ids. We only iterate through the fields that we know
         # for sure are objects. User is responsible for hydrating all other fields.
         object_ids = set()
@@ -617,18 +638,12 @@ class DatabaseBackend(BaseBackend):
         s = sql.select([self.objects_table]).where(self.objects_table.c.id.in_(obj_ids))
         return s
 
-    # def _get_select_multiple_activities_query(self, activity_ids):
-    #     audience_targeting_join = self.activities_table
-    #     for audience_targeting_table in [self.to_table, self.bto_table, self.cc_table, self.bcc_table]:
-    #         audience_targeting_join.outerjoin(audience_targeting_table, audience_targeting_table.c.activity == self.activities_table.c.id)
-    #
-    #     s = sql.select([self.activities_table, self.to_table, self.bto_table, self.cc_table, self.bcc_table]).select_from(
-    #         audience_targeting_join).where(self.activities_table.c.id.in_(activity_ids))
-    #
-    #     return s
-
     def _get_select_multiple_activities_query(self, activity_ids):
-        s = sql.select([self.activities_table, self.to_table]).select_from(
-            self.activities_table.join(self.to_table, self.activities_table.c.id == self.to_table.c.activity, isouter=True)).where(self.activities_table.c.id.in_(activity_ids))
+        s = sql.select([self.activities_table, self.to_table, self.bto_table, self.cc_table, self.bcc_table]).select_from(
+            self.activities_table.outerjoin(self.to_table, and_(self.activities_table.c.id == self.to_table.c.activity)).outerjoin(
+                self.bto_table, and_(self.activities_table.c.id == self.bto_table.c.activity)).outerjoin(
+                self.cc_table, and_(self.activities_table.c.id == self.cc_table.c.activity)).outerjoin(
+                self.bcc_table, and_(self.activities_table.c.id == self.bcc_table.c.activity)
+                )).where(self.activities_table.c.id.in_(activity_ids))
 
         return s

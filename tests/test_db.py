@@ -483,24 +483,45 @@ class TestDatabaseBackend(object):
         self._backend.create_activity(self.hydrated_test_activity)
         ok_(self._backend.activity_exists(self.hydrated_test_activity))
 
-    def test_create_activity_with_audience_targeting(self):
-        db_obj = self._backend._obj_dict_to_db_schema(self.test_objs[3])
-        objects_table = self._backend.objects_table
-        self._engine.execute(objects_table.insert(), db_obj)
+    def _setup_audience_targeting_activities(self):
+        id_1 = self.hydrated_test_activity['id'] + '1'
+        id_2 = self.hydrated_test_activity['id'] + '2'
 
-        self.hydrated_test_activity['to'] = [self.test_objs[0]]
-        self.hydrated_test_activity['bto'] = [self.test_objs[1]]
-        self.hydrated_test_activity['cc'] = [self.test_objs[0], self.test_objs[1]]
-        self.hydrated_test_activity['bcc'] = [self.test_objs[2], self.test_objs[3]['id']]
-
+        self.hydrated_test_activity['id'] = id_1
         self._backend.create_activity(self.hydrated_test_activity)
 
-        ok_(self._backend.activity_exists(self.hydrated_test_activity))
+        self.hydrated_test_activity['id'] = id_2
+        self.hydrated_test_activity['to'] = [self.test_objs[0]]
+        self._backend.create_activity(self.hydrated_test_activity)
 
-        ok_(self._backend.obj_exists(self.test_objs[0]))
-        ok_(self._backend.obj_exists(self.test_objs[1]))
-        ok_(self._backend.obj_exists(self.test_objs[2]))
-        ok_(self._backend.obj_exists(self.test_objs[3]))
+        return id_1, id_2
+
+    def test_get_activities_with_no_audience_targeting_specified(self):
+        id_1, id_2 = self._setup_audience_targeting_activities()
+
+        activities = self._backend.get_activity([id_1, id_2], audience_targeting={}, include_public=False)
+
+        eq_(1, len(activities))
+        eq_(id_1, activities[0]['id'])
+
+        activities = self._backend.get_activity([id_1, id_2], audience_targeting={}, include_public=True)
+
+        eq_(1, len(activities))
+        eq_(id_1, activities[0]['id'])
+
+    def test_get_activities_with_audience_targeting_to(self):
+        id_1, id_2 = self._setup_audience_targeting_activities()
+
+        activities = self._backend.get_activity([id_1, id_2], audience_targeting={'to': [self.test_objs[0]['id']]}, include_public=False)
+
+        eq_(1, len(activities))
+        eq_(id_2, activities[0]['id'])
+
+        activities = self._backend.get_activity([id_1, id_2], audience_targeting={'to': [self.test_objs[0]['id']]}, include_public=True)
+
+        eq_(2, len(activities))
+        ok_(id_1 in [activities[0]['id'], activities[1]['id']])
+        ok_(id_2 in [activities[0]['id'], activities[1]['id']])
 
     def test_create_activity_with_audience_targeting(self):
         # We are going to insert one object by id just to make sure it works when we just insert by id
@@ -562,7 +583,7 @@ class TestDatabaseBackend(object):
         activity_copy = copy.deepcopy(self.hydrated_test_activity)
 
         self._backend.create_activity(self.hydrated_test_activity)
-        activity = self._backend.get_activity(self.hydrated_test_activity['id'])[0]
+        activity = self._backend.get_activity(self.hydrated_test_activity['id'], include_public=True)[0]
 
         # Updated is changed when an activity is saved
         activity_copy['updated'] = activity['updated']
