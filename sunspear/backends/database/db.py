@@ -27,6 +27,7 @@ import six
 from dateutil import tz
 from dateutil.parser import parse
 from sqlalchemy import create_engine, desc, sql
+from sqlalchemy.engine.result import RowProxy
 from sqlalchemy.pool import QueuePool
 from sunspear.activitystreams.models import (SUB_ACTIVITY_VERBS_MAP, Activity,
                                              Model, Object)
@@ -283,18 +284,30 @@ class DatabaseBackend(BaseBackend):
 
         return return_val
 
-    def activity_get(self, activity_ids, **kwargs):
+    def activity_get(self, activity_ids, aggregation_pipeline=[], audience_targeting={}, **kwargs):
         activity_ids = self._listify(activity_ids)
-        activities = self._get_raw_activities(activity_ids, **kwargs)
+        activities_query = self.get_raw_activities_query(activity_ids, **kwargs)
+        activities = self.get_raw_activities(activities_query)
         activities = self.hydrate_activities(activities)
 
+        if aggregation_pipeline:
+            original_activities = copy.deepcopy(activities)
+            for aggregator in aggregation_pipeline:
+                activities = aggregator.process(activities, original_activities, aggregation_pipeline)
+
         return activities
+
+    def filter_by_audience_targetting(self, audience_targeting):
+        audience_targeting_fields = ['to', 'bto', 'cc', 'bcc']
+        for audience_targeting_field in audience_targeting_fields:
+            pass
 
     def sub_activity_create(self, activity, actor, content, extra={}, sub_activity_verb="", published=None, **kwargs):
         sub_activity_attribute = self.get_sub_activity_attribute(sub_activity_verb)
 
         activity_id = self._extract_id(activity)
-        raw_activity = self._get_raw_activities([activity_id])[0]
+        activities_query = self.get_raw_activities_query([activity_id], **kwargs)
+        raw_activity = self.get_raw_activities(activities_query)[0]
 
         sub_activity, original_activity = self._create_sub_activity(
             sub_activity_attribute, raw_activity, actor, content, extra=extra, sub_activity_verb=sub_activity_verb, published=published, **kwargs)
@@ -352,7 +365,9 @@ class DatabaseBackend(BaseBackend):
         # If we did have activities that were objects, we need to hydrate those activities and
         # the objects for those activities
         if activities_in_objects_ids:
-            sub_activities = self._get_raw_activities(activities_in_objects_ids)
+            activities_query = self.get_raw_activities_query(activities_in_objects_ids)
+            sub_activities = self.get_raw_activities(activities_query)
+
             activities_in_objects_dict = dict(((sub_activity["id"], sub_activity,) for sub_activity in sub_activities))
             for activity in activities:
                 activity = self._dehydrate_sub_activity(activity, activities_in_objects_dict, skip_sub_activities=True)
@@ -441,13 +456,16 @@ class DatabaseBackend(BaseBackend):
     def _get_sub_activity_table(self, sub_activity_attribute):
         return getattr(self, '{}_table'.format(sub_activity_attribute))
 
-    def _get_raw_activities(self, activity_ids, **kwargs):
+    def get_raw_activities_query(self, activity_ids, **kwargs):
         activity_ids = map(self._extract_id, activity_ids)
         if not activity_ids:
             return []
 
         s = self._get_select_multiple_activities_query(activity_ids)
-        activities = self.engine.execute(s).fetchall()
+        return s
+
+    def get_raw_activities(self, activities_query):
+        activities = self.engine.execute(activities_query).fetchall()
         activities = [self._db_schema_to_activity_dict(activity) for activity in activities]
 
         return activities
@@ -509,14 +527,20 @@ class DatabaseBackend(BaseBackend):
                 return True
         return False
 
-    def _convert_to_activity_stream_schema(self, schema_dict, field_mapping):
+    def _convert_to_activity_stream_schema(self, schema_dict, field_mapping, db_table):
         # we make a copy because we will be mutating the dict.
         # we will map official fields to db fields, and put the rest in `other_data`
         obj_dict = {}
+        is_row_proxy = isinstance(schema_dict, RowProxy)
 
         for obj_field, db_schema_field in field_mapping.items():
-            if db_schema_field in schema_dict:
-                data = schema_dict[db_schema_field]
+            if is_row_proxy:
+                column_name = getattr(db_table.c, db_schema_field)
+            else:
+                column_name = db_schema_field
+            if column_name in schema_dict:
+                data = schema_dict[column_name]
+
                 if self._need_to_parse_json(db_schema_field, data):
                     data = json.loads(data)
 
@@ -525,10 +549,15 @@ class DatabaseBackend(BaseBackend):
                     data = self._get_datetime_obj(data)
                     data = '{}Z'.format(data.isoformat())
 
-            obj_dict[obj_field] = data
+                obj_dict[obj_field] = data
 
-        if 'other_data' in schema_dict and schema_dict['other_data'] is not None:
-            other_data = schema_dict['other_data']
+        if is_row_proxy:
+            other_data_column_name = getattr(db_table.c, 'other_data')
+        else:
+            other_data_column_name = 'other_data'
+
+        if other_data_column_name in schema_dict and schema_dict[other_data_column_name] is not None:
+            other_data = schema_dict[other_data_column_name]
             if self._need_to_parse_json('other_data', other_data):
                 other_data = json.loads(other_data)
             obj_dict.update(other_data)
@@ -542,10 +571,10 @@ class DatabaseBackend(BaseBackend):
         return self._convert_to_db_schema(activity, DB_ACTIVITY_FIELD_MAPPING)
 
     def _db_schema_to_obj_dict(self, obj):
-        return self._convert_to_activity_stream_schema(obj, DB_OBJ_FIELD_MAPPING)
+        return self._convert_to_activity_stream_schema(obj, DB_OBJ_FIELD_MAPPING, self.objects_table)
 
     def _db_schema_to_activity_dict(self, activity):
-        return self._convert_to_activity_stream_schema(activity, DB_ACTIVITY_FIELD_MAPPING)
+        return self._convert_to_activity_stream_schema(activity, DB_ACTIVITY_FIELD_MAPPING, self.activities_table)
 
     def _get_datetime_obj(self, datetime_instance):
         if isinstance(datetime_instance, basestring):
@@ -585,9 +614,21 @@ class DatabaseBackend(BaseBackend):
         return s
 
     def _get_select_multiple_objects_query(self, obj_ids):
-        s = sql.select(['*']).where(self.objects_table.c.id.in_(obj_ids))
+        s = sql.select([self.objects_table]).where(self.objects_table.c.id.in_(obj_ids))
         return s
 
+    # def _get_select_multiple_activities_query(self, activity_ids):
+    #     audience_targeting_join = self.activities_table
+    #     for audience_targeting_table in [self.to_table, self.bto_table, self.cc_table, self.bcc_table]:
+    #         audience_targeting_join.outerjoin(audience_targeting_table, audience_targeting_table.c.activity == self.activities_table.c.id)
+    #
+    #     s = sql.select([self.activities_table, self.to_table, self.bto_table, self.cc_table, self.bcc_table]).select_from(
+    #         audience_targeting_join).where(self.activities_table.c.id.in_(activity_ids))
+    #
+    #     return s
+
     def _get_select_multiple_activities_query(self, activity_ids):
-        s = sql.select(['*']).where(self.activities_table.c.id.in_(activity_ids))
+        s = sql.select([self.activities_table, self.to_table]).select_from(
+            self.activities_table.join(self.to_table, self.activities_table.c.id == self.to_table.c.activity, isouter=True)).where(self.activities_table.c.id.in_(activity_ids))
+
         return s
