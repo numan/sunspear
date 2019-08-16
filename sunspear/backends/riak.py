@@ -425,7 +425,7 @@ class RiakBackend(BaseBackend):
             raise SunspearValidationException("Trying to delete something that is not a {}.".format(sub_activity_model.sub_item_verb))
 
         #clean up the reference from the original activity
-        in_reply_to_key = filter(lambda x: x[0] == 'inreplyto_bin', sub_activity_riak_model.indexes)[0][1]
+        in_reply_to_key = [x for x in sub_activity_riak_model.indexes if x[0] == 'inreplyto_bin'][0][1]
         activity = self._activities.get(key=in_reply_to_key)
         activity_data = activity.data
         activity_data[sub_activity_model.sub_item_key]['totalItems'] -= 1
