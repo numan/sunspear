@@ -53,6 +53,17 @@ class SunspearClient(object):
 
         return self._backend.create_activity(actstream_dict)
 
+    def update_activity(self, actstream_dict):
+        """
+        Updates an existing activity in the backend. If the object does not exist, it is created in the backend.
+
+        Parameters:	activity (dict) - a dict representing the activity
+        Raises:	SunspearInvalidActivityException if the activity doesn't have a valid id.
+        Returns:	a dict representing the newly stored activity
+        """
+
+        return self._backend.update_activity(actstream_dict)
+
     def create_reply(self, activity, actor, content, extra={}, **kwargs):
         """
         Creates a ``reply`` for an activity.
