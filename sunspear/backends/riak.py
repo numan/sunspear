@@ -270,7 +270,7 @@ class RiakBackend(BaseBackend):
         If you provide a dictionary for an object, it is saved as a new object.
 
         If you provide an object id and the object does not exist, it is saved anyway, and returned as an empty
-        dictionary when retriving the activity later.
+        dictionary when retrieving the activity later.
         """
         activity = Activity(activity, backend=self)
 
@@ -282,7 +282,13 @@ class RiakBackend(BaseBackend):
         riak_obj = self._activities.new(key=key)
         riak_obj.data = activity_dict
         riak_obj = self.set_activity_indexes(self.set_general_indexes(riak_obj))
-        if activity_dict['verb'] in SUB_ACTIVITY_MAP:
+        # This method gets called when creating or updating a sub activity
+        # When we are updating and not creating a sub activity, the sub item indexes already exist
+        # and the parent activity id is not passed in kwargs. This results in an error if we try to 
+        # remake the index when updating here with null activity_id in kwargs
+        # To prevent this, we only call set_sub_item_indexes when activity_id is passed,
+        # which only happens when we are creating the sub activity for the first time.
+        if activity_dict['verb'] in SUB_ACTIVITY_MAP and kwargs.get('activity_id'):
             riak_obj = self.set_sub_item_indexes(riak_obj, **kwargs)
 
         riak_obj.store()
